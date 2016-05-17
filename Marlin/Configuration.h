@@ -110,10 +110,7 @@
 
 // Optional custom name for your RepStrap or other custom machine
 // Displayed in the LCD "Ready" message
-#define CUSTOM_MACHINE_NAME "HEPHESTOS"
-
-// Added for BQ
-#define SOURCE_CODE_URL "http://www.bq.com/gb/downloads-prusa-i3-hephestos.html"
+#define CUSTOM_MACHINE_NAME "Hephestos"
 
 // Define this to set a unique identifier for this printer, (Used by some programs to differentiate between machines)
 // You can use an online service to generate a random UUID. (eg http://www.uuidgenerator.net/version4)
@@ -189,7 +186,7 @@
 #define TEMP_SENSOR_1 0
 #define TEMP_SENSOR_2 0
 #define TEMP_SENSOR_3 0
-#define TEMP_SENSOR_BED 0
+#define TEMP_SENSOR_BED 1
 
 // This makes temp sensor 1 a redundant sensor for sensor 0. If the temperatures difference between these sensors is to high the print will be aborted.
 //#define TEMP_SENSOR_1_AS_REDUNDANT
@@ -249,9 +246,14 @@
   #define K1 0.95 //smoothing factor within the PID
 
   // Hephestos i3
-  #define  DEFAULT_Kp 23.05
-  #define  DEFAULT_Ki 2.00
-  #define  DEFAULT_Kd 66.47
+  //#define  DEFAULT_Kp 23.05
+  //#define  DEFAULT_Ki 2.00
+  //#define  DEFAULT_Kd 66.47
+
+  // From pidautotune
+  #define  DEFAULT_Kp 14.53
+  #define  DEFAULT_Ki 1.14
+  #define  DEFAULT_Kd 46.43
 
 #endif // PIDTEMP
 
@@ -267,7 +269,7 @@
 // If your configuration is significantly different than this and you don't understand the issues involved, you probably
 // shouldn't use bed PID until someone else verifies your hardware works.
 // If this is enabled, find your own PID constants below.
-//#define PIDTEMPBED
+#define PIDTEMPBED
 
 //#define BED_LIMIT_SWITCHING
 
@@ -285,15 +287,21 @@
 
   //120V 250W silicone heater into 4mm borosilicate (MendelMax 1.5+)
   //from FOPDT model - kp=.39 Tp=405 Tdead=66, Tc set to 79.2, aggressive factor of .15 (vs .1, 1, 10)
-  #define  DEFAULT_bedKp 10.00
-  #define  DEFAULT_bedKi .023
-  #define  DEFAULT_bedKd 305.4
+  //#define  DEFAULT_bedKp 10.00
+  //#define  DEFAULT_bedKi .023
+  //#define  DEFAULT_bedKd 305.4
+  
 
   //120V 250W silicone heater into 4mm borosilicate (MendelMax 1.5+)
   //from pidautotune
   //#define  DEFAULT_bedKp 97.1
   //#define  DEFAULT_bedKi 1.41
   //#define  DEFAULT_bedKd 1675.16
+
+  // From pidautotune
+  #define  DEFAULT_bedKp 192.78
+  #define  DEFAULT_bedKi 25.80
+  #define  DEFAULT_bedKd 360.07
 
   // FIND YOUR OWN: "M303 E-1 C8 S90" to run autotune on the bed at 90 degreesC for 8 cycles.
 #endif // PIDTEMPBED
@@ -955,6 +963,12 @@ const bool Z_MIN_PROBE_ENDSTOP_INVERTING = true; // set to true to invert the lo
 // Note: Usually sold with a white PCB.
 //
 #define REPRAP_DISCOUNT_SMART_CONTROLLER
+
+//
+// BQ LCD Smart Controller shipped by
+// default with the BQ Hephestos 2 and Witbox 2.
+//
+//#define BQ_LCD_SMART_CONTROLLER
 
 //
 // GADGETS3D G3D LCD/SD Controller
