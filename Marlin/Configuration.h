@@ -250,11 +250,15 @@
   //#define  DEFAULT_Ki 2.00
   //#define  DEFAULT_Kd 66.47
 
-  // From pidautotune
-  #define  DEFAULT_Kp 14.53
-  #define  DEFAULT_Ki 1.14
-  #define  DEFAULT_Kd 46.43
-
+  // From pidautotune @200
+  //#define  DEFAULT_Kp 14.53
+  //#define  DEFAULT_Ki 1.14
+  //#define  DEFAULT_Kd 46.43
+  
+  // From pidautotune @240
+  #define  DEFAULT_Kp 10.37
+  #define  DEFAULT_Ki 0.77
+  #define  DEFAULT_Kd 34.93
 #endif // PIDTEMP
 
 //===========================================================================
