@@ -552,7 +552,7 @@ static void report_current_position();
       if (DEBUGGING(LEVELING)) DEBUG_POS("sync_plan_position_delta", current_position);
     #endif
     calculate_delta(current_position);
-    planner.set_position(delta[X_AXIS], delta[Y_AXIS], delta[Z_AXIS], current_position[E_AXIS]);
+    planner.set_position_mm(delta[X_AXIS], delta[Y_AXIS], delta[Z_AXIS], current_position[E_AXIS]);
   }
 #endif
 
@@ -611,6 +611,11 @@ static bool drain_queued_commands_P() {
 void enqueue_and_echo_commands_P(const char* pgcode) {
   queued_commands_P = pgcode;
   drain_queued_commands_P(); // first command executed asap (when possible)
+}
+
+void clear_command_queue() {
+  cmd_queue_index_r = cmd_queue_index_w;
+  commands_in_queue = 0;
 }
 
 /**
@@ -854,6 +859,10 @@ void setup() {
 
   #if ENABLED(DIGIPOT_I2C)
     digipot_i2c_init();
+  #endif
+
+  #if ENABLED(DAC_STEPPER_CURRENT)
+    dac_init();
   #endif
 
   #if ENABLED(Z_PROBE_SLED)
@@ -1268,6 +1277,7 @@ XYZ_CONSTS_FROM_CONFIG(signed char, home_dir, HOME_DIR);
  */
 static void update_software_endstops(AxisEnum axis) {
   float offs = home_offset[axis] + position_shift[axis];
+
   #if ENABLED(DUAL_X_CARRIAGE)
     if (axis == X_AXIS) {
       float dual_max_x = max(extruder_offset[X_AXIS][1], X2_MAX_POS);
@@ -1288,6 +1298,7 @@ static void update_software_endstops(AxisEnum axis) {
     sw_endstop_min[axis] = base_min_pos(axis) + offs;
     sw_endstop_max[axis] = base_max_pos(axis) + offs;
   }
+
 }
 
 /**
@@ -1442,9 +1453,9 @@ inline void sync_plan_position() {
   #if ENABLED(DEBUG_LEVELING_FEATURE)
     if (DEBUGGING(LEVELING)) DEBUG_POS("sync_plan_position", current_position);
   #endif
-  planner.set_position(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS]);
+  planner.set_position_mm(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS]);
 }
-inline void sync_plan_position_e() { planner.set_e_position(current_position[E_AXIS]); }
+inline void sync_plan_position_e() { planner.set_e_position_mm(current_position[E_AXIS]); }
 inline void set_current_to_destination() { memcpy(current_position, destination, sizeof(current_position)); }
 inline void set_destination_to_current() { memcpy(destination, current_position, sizeof(destination)); }
 
@@ -1601,7 +1612,7 @@ static void setup_for_endstop_move() {
 
       // Tell the planner where we ended up - Get this from the stepper handler
       zPosition = stepper.get_axis_position_mm(Z_AXIS);
-      planner.set_position(
+      planner.set_position_mm(
         current_position[X_AXIS], current_position[Y_AXIS], zPosition,
         current_position[E_AXIS]
       );
@@ -3587,7 +3598,7 @@ inline void gcode_G28() {
          * Get the current Z position and send it to the planner.
          *
          * >> (z_tmp - real_z) : The rotated current Z minus the uncorrected Z
-         * (most recent planner.set_position/sync_plan_position)
+         * (most recent planner.set_position_mm/sync_plan_position)
          *
          * >> zprobe_zoffset : Z distance from nozzle to Z probe
          * (set by default, M851, EEPROM, or Menu)
@@ -5624,7 +5635,7 @@ inline void gcode_M226() {
 
 #endif // CHDK || PHOTOGRAPH_PIN
 
-#if ENABLED(HAS_LCD_CONTRAST)
+#if HAS_LCD_CONTRAST
 
   /**
    * M250: Read and optionally set the LCD contrast
@@ -5883,13 +5894,35 @@ inline void gcode_M400() { stepper.synchronize(); }
 
 #endif // FILAMENT_WIDTH_SENSOR
 
+#if DISABLED(DELTA) && DISABLED(SCARA)
+  void set_current_position_from_planner() {
+    stepper.synchronize();
+    #if ENABLED(AUTO_BED_LEVELING_FEATURE)
+      vector_3 pos = planner.adjusted_position(); // values directly from steppers...
+      current_position[X_AXIS] = pos.x;
+      current_position[Y_AXIS] = pos.y;
+      current_position[Z_AXIS] = pos.z;
+    #else
+      current_position[X_AXIS] = stepper.get_axis_position_mm(X_AXIS);
+      current_position[Y_AXIS] = stepper.get_axis_position_mm(Y_AXIS);
+      current_position[Z_AXIS] = stepper.get_axis_position_mm(Z_AXIS);
+    #endif
+    sync_plan_position();                       // ...re-apply to planner position
+  }
+#endif
+
 /**
  * M410: Quickstop - Abort all planned moves
  *
  * This will stop the carriages mid-move, so most likely they
  * will be out of sync with the stepper position after this.
  */
-inline void gcode_M410() { stepper.quick_stop(); }
+inline void gcode_M410() {
+  stepper.quick_stop();
+  #if DISABLED(DELTA) && DISABLED(SCARA)
+    set_current_position_from_planner();
+  #endif
+}
 
 
 #if ENABLED(MESH_BED_LEVELING)
@@ -6468,24 +6501,29 @@ inline void gcode_T(uint8_t tmp_extruder) {
 
         #else // !AUTO_BED_LEVELING_FEATURE
 
-          // Offset extruder (only by XY)
-          for (int i=X_AXIS; i<=Y_AXIS; i++)
-            current_position[i] += extruder_offset[i][tmp_extruder] - extruder_offset[i][active_extruder];
+          // The newly-selected extruder is actually at...
+          for (int i=X_AXIS; i<=Y_AXIS; i++) {
+            float diff = extruder_offset[i][tmp_extruder] - extruder_offset[i][active_extruder];
+            current_position[i] += diff;
+            position_shift[i] += diff; // Offset the coordinate space
+            update_software_endstops((AxisEnum)i);
+          }
 
         #endif // !AUTO_BED_LEVELING_FEATURE
 
-        // Set the new active extruder and position
+        // Set the new active extruder
         active_extruder = tmp_extruder;
 
       #endif // !DUAL_X_CARRIAGE
 
+      // Tell the planner the new "current position"
       #if ENABLED(DELTA)
         sync_plan_position_delta();
       #else
         sync_plan_position();
       #endif
 
-      // Move to the old position
+      // Move to the "old position" (move the extruder into place)
       if (IsRunning()) prepare_move();
 
     } // (tmp_extruder != active_extruder)
@@ -6975,7 +7013,7 @@ void process_next_command() {
           break;
       #endif // CHDK || PHOTOGRAPH_PIN
 
-      #if ENABLED(HAS_LCD_CONTRAST)
+      #if HAS_LCD_CONTRAST
         case 250: // M250  Set LCD contrast value: C<value> (value 0..63)
           gcode_M250();
           break;
@@ -7183,23 +7221,8 @@ void clamp_to_software_endstops(float target[3]) {
   if (min_software_endstops) {
     NOLESS(target[X_AXIS], sw_endstop_min[X_AXIS]);
     NOLESS(target[Y_AXIS], sw_endstop_min[Y_AXIS]);
-
-    float negative_z_offset = 0;
-    #if ENABLED(AUTO_BED_LEVELING_FEATURE)
-      if (zprobe_zoffset < 0) negative_z_offset += zprobe_zoffset;
-      if (home_offset[Z_AXIS] < 0) {
-        #if ENABLED(DEBUG_LEVELING_FEATURE)
-          if (DEBUGGING(LEVELING)) {
-            SERIAL_ECHOPAIR("> clamp_to_software_endstops > Add home_offset[Z_AXIS]:", home_offset[Z_AXIS]);
-            SERIAL_EOL;
-          }
-        #endif
-        negative_z_offset += home_offset[Z_AXIS];
-      }
-    #endif
-    NOLESS(target[Z_AXIS], sw_endstop_min[Z_AXIS] + negative_z_offset);
+    NOLESS(target[Z_AXIS], sw_endstop_min[Z_AXIS]);
   }
-
   if (max_software_endstops) {
     NOMORE(target[X_AXIS], sw_endstop_max[X_AXIS]);
     NOMORE(target[Y_AXIS], sw_endstop_max[Y_AXIS]);
@@ -7440,7 +7463,7 @@ void mesh_buffer_line(float x, float y, float z, const float e, float feed_rate,
     if (active_extruder_parked) {
       if (dual_x_carriage_mode == DXC_DUPLICATION_MODE && active_extruder == 0) {
         // move duplicate extruder into correct duplication position.
-        planner.set_position(inactive_extruder_x_pos, current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS]);
+        planner.set_position_mm(inactive_extruder_x_pos, current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS]);
         planner.buffer_line(current_position[X_AXIS] + duplicate_extruder_x_offset,
                          current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS], planner.max_feedrate[X_AXIS], 1);
         sync_plan_position();
@@ -7993,7 +8016,7 @@ void manage_inactivity(bool ignore_stepper_queue/*=false*/) {
                          (EXTRUDER_RUNOUT_SPEED) / 60. * (EXTRUDER_RUNOUT_ESTEPS) / planner.axis_steps_per_unit[E_AXIS], active_extruder);
       current_position[E_AXIS] = oldepos;
       destination[E_AXIS] = oldedes;
-      planner.set_e_position(oldepos);
+      planner.set_e_position_mm(oldepos);
       previous_cmd_ms = ms; // refresh_cmd_timeout()
       stepper.synchronize();
       switch (active_extruder) {

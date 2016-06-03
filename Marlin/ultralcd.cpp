@@ -97,7 +97,7 @@ static void lcd_status_screen();
   static void lcd_control_motion_menu();
   static void lcd_control_volumetric_menu();
 
-  #if ENABLED(HAS_LCD_CONTRAST)
+  #if HAS_LCD_CONTRAST
     static void lcd_set_contrast();
   #endif
 
@@ -482,6 +482,10 @@ inline void line_to_current(AxisEnum axis) {
 
   static void lcd_sdcard_stop() {
     stepper.quick_stop();
+    #if DISABLED(DELTA) && DISABLED(SCARA)
+      set_current_position_from_planner();
+    #endif
+    clear_command_queue();
     card.sdprinting = false;
     card.closefile();
     print_job_timer.stop();
@@ -1037,7 +1041,7 @@ void lcd_cooldown() {
     if (LCD_CLICKED) {
       _lcd_level_bed_position = 0;
       current_position[Z_AXIS] = MESH_HOME_SEARCH_Z;
-      planner.set_position(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS]);
+      planner.set_position_mm(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS]);
       lcd_goto_menu(_lcd_level_goto_next_point, true);
     }
   }
@@ -1352,7 +1356,7 @@ static void lcd_control_menu() {
   MENU_ITEM(submenu, MSG_MOTION, lcd_control_motion_menu);
   MENU_ITEM(submenu, MSG_VOLUMETRIC, lcd_control_volumetric_menu);
 
-  #if ENABLED(HAS_LCD_CONTRAST)
+  #if HAS_LCD_CONTRAST
     //MENU_ITEM_EDIT(int3, MSG_CONTRAST, &lcd_contrast, 0, 63);
     MENU_ITEM(submenu, MSG_CONTRAST, lcd_set_contrast);
   #endif
@@ -1712,7 +1716,7 @@ static void lcd_control_volumetric_menu() {
  * "Control" > "Contrast" submenu
  *
  */
-#if ENABLED(HAS_LCD_CONTRAST)
+#if HAS_LCD_CONTRAST
   static void lcd_set_contrast() {
     ENCODER_DIRECTION_NORMAL();
     if (encoderPosition) {
@@ -2383,7 +2387,7 @@ void lcd_setalertstatuspgm(const char* message) {
 
 void lcd_reset_alert_level() { lcd_status_message_level = 0; }
 
-#if ENABLED(HAS_LCD_CONTRAST)
+#if HAS_LCD_CONTRAST
   void lcd_setcontrast(uint8_t value) {
     lcd_contrast = value & 0x3F;
     u8g.setContrast(lcd_contrast);
