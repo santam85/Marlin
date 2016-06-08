@@ -356,23 +356,23 @@ static uint8_t target_extruder;
 #endif
 
 // Extruder offsets
-#if EXTRUDERS > 1
-  #ifndef EXTRUDER_OFFSET_X
-    #define EXTRUDER_OFFSET_X { 0 } // X offsets for each extruder
+#if HOTENDS > 1
+  #ifndef HOTEND_OFFSET_X
+    #define HOTEND_OFFSET_X { 0 } // X offsets for each extruder
   #endif
-  #ifndef EXTRUDER_OFFSET_Y
-    #define EXTRUDER_OFFSET_Y { 0 } // Y offsets for each extruder
+  #ifndef HOTEND_OFFSET_Y
+    #define HOTEND_OFFSET_Y { 0 } // Y offsets for each extruder
   #endif
-  float extruder_offset[][EXTRUDERS] = {
-    EXTRUDER_OFFSET_X,
-    EXTRUDER_OFFSET_Y
+  float hotend_offset[][HOTENDS] = {
+    HOTEND_OFFSET_X,
+    HOTEND_OFFSET_Y
     #if ENABLED(DUAL_X_CARRIAGE)
       , { 0 } // Z offsets for each extruder
     #endif
   };
 #endif
 
-#if HAS_SERVO_ENDSTOPS
+#if ENABLED(HAS_SERVO_ENDSTOPS)
   const int servo_endstop_id[] = SERVO_ENDSTOP_IDS;
   const int servo_endstop_angle[][2] = SERVO_ENDSTOP_ANGLES;
 #endif
@@ -724,7 +724,7 @@ void servo_init() {
     servo[3].detach();
   #endif
 
-   #if HAS_SERVO_ENDSTOPS
+   #if ENABLED(HAS_SERVO_ENDSTOPS)
 
     endstops.enable_z_probe(false);
 
@@ -1249,7 +1249,7 @@ XYZ_CONSTS_FROM_CONFIG(signed char, home_dir, HOME_DIR);
        * This allow soft recalibration of the second extruder offset position
        * without firmware reflash (through the M218 command).
        */
-      return (extruder_offset[X_AXIS][1] > 0) ? extruder_offset[X_AXIS][1] : X2_HOME_POS;
+      return (hotend_offset[X_AXIS][1] > 0) ? hotend_offset[X_AXIS][1] : X2_HOME_POS;
   }
 
   static int x_home_dir(int extruder) {
@@ -1280,7 +1280,7 @@ static void update_software_endstops(AxisEnum axis) {
 
   #if ENABLED(DUAL_X_CARRIAGE)
     if (axis == X_AXIS) {
-      float dual_max_x = max(extruder_offset[X_AXIS][1], X2_MAX_POS);
+      float dual_max_x = max(hotend_offset[X_AXIS][1], X2_MAX_POS);
       if (active_extruder != 0) {
         sw_endstop_min[X_AXIS] = X2_MIN_POS + offs;
         sw_endstop_max[X_AXIS] = dual_max_x + offs;
@@ -1701,7 +1701,12 @@ static void setup_for_endstop_move() {
   }
 
   inline void raise_z_after_probing() {
-    do_blocking_move_to_z(current_position[Z_AXIS] + Z_RAISE_AFTER_PROBING);
+    #if Z_RAISE_AFTER_PROBING > 0
+      #if ENABLED(DEBUG_LEVELING_FEATURE)
+        if (DEBUGGING(LEVELING)) SERIAL_ECHOLNPGM("raise_z_after_probing()");
+      #endif
+      do_blocking_move_to_z(current_position[Z_AXIS] + Z_RAISE_AFTER_PROBING);
+    #endif
   }
 
   static void clean_up_after_endstop_move() {
@@ -1724,7 +1729,7 @@ static void setup_for_endstop_move() {
 
     if (endstops.z_probe_enabled) return;
 
-    #if HAS_SERVO_ENDSTOPS
+    #if ENABLED(HAS_SERVO_ENDSTOPS)
 
       // Engage Z Servo endstop if enabled
       if (servo_endstop_id[Z_AXIS] >= 0) servo[servo_endstop_id[Z_AXIS]].move(servo_endstop_angle[Z_AXIS][0]);
@@ -1811,7 +1816,7 @@ static void setup_for_endstop_move() {
   }
 
   static void stow_z_probe(bool doRaise = true) {
-    #if !(HAS_SERVO_ENDSTOPS && (Z_RAISE_AFTER_PROBING > 0))
+    #if !(ENABLED(HAS_SERVO_ENDSTOPS) && (Z_RAISE_AFTER_PROBING > 0))
       UNUSED(doRaise);
     #endif
     #if ENABLED(DEBUG_LEVELING_FEATURE)
@@ -1820,21 +1825,13 @@ static void setup_for_endstop_move() {
 
     if (!endstops.z_probe_enabled) return;
 
-    #if HAS_SERVO_ENDSTOPS
+    #if ENABLED(HAS_SERVO_ENDSTOPS)
 
       // Retract Z Servo endstop if enabled
       if (servo_endstop_id[Z_AXIS] >= 0) {
 
         #if Z_RAISE_AFTER_PROBING > 0
           if (doRaise) {
-            #if ENABLED(DEBUG_LEVELING_FEATURE)
-              if (DEBUGGING(LEVELING)) {
-                SERIAL_ECHOPAIR("Raise Z (after) by ", Z_RAISE_AFTER_PROBING);
-                SERIAL_EOL;
-                SERIAL_ECHO("> SERVO_ENDSTOPS > raise_z_after_probing()");
-                SERIAL_EOL;
-              }
-            #endif
             raise_z_after_probing(); // this also updates current_position
             stepper.synchronize();
           }
@@ -2062,7 +2059,7 @@ static void setup_for_endstop_move() {
 
   #endif // DELTA
 
-  #if HAS_SERVO_ENDSTOPS && DISABLED(Z_PROBE_SLED)
+  #if ENABLED(HAS_SERVO_ENDSTOPS) && DISABLED(Z_PROBE_SLED)
 
     void raise_z_for_servo() {
       float zpos = current_position[Z_AXIS], z_dest = Z_RAISE_BEFORE_PROBING;
@@ -2122,9 +2119,7 @@ static void setup_for_endstop_move() {
 
     float oldXpos = current_position[X_AXIS]; // save x position
     if (dock) {
-      #if Z_RAISE_AFTER_PROBING > 0
-        raise_z_after_probing(); // raise Z
-      #endif
+      raise_z_after_probing(); // raise Z
       // Dock sled a bit closer to ensure proper capturing
       do_blocking_move_to_x(X_MAX_POS + SLED_DOCKING_OFFSET + offset - 1);
       digitalWrite(SLED_PIN, LOW); // turn off magnet
@@ -2173,33 +2168,36 @@ static void homeaxis(AxisEnum axis) {
     sync_plan_position();
 
     #if ENABLED(Z_PROBE_SLED)
-      #define _Z_SERVO_TEST       (axis != Z_AXIS)      // deploy Z, servo.move XY
-      #define _Z_PROBE_SUBTEST    false                 // Z will never be invoked
+      #define _Z_SERVO_TEST       (axis != Z_AXIS)      // already deployed Z
+      #define _Z_SERVO_SUBTEST    false                 // Z will never be invoked
       #define _Z_DEPLOY           (dock_sled(false))
       #define _Z_STOW             (dock_sled(true))
     #elif SERVO_LEVELING || ENABLED(FIX_MOUNTED_PROBE)
-      #define _Z_SERVO_TEST       (axis != Z_AXIS)      // servo.move XY
-      #define _Z_PROBE_SUBTEST    false                 // Z will never be invoked
+      #define _Z_SERVO_TEST       (axis != Z_AXIS)      // already deployed Z
+      #define _Z_SERVO_SUBTEST    false                 // Z will never be invoked
       #define _Z_DEPLOY           (deploy_z_probe())
       #define _Z_STOW             (stow_z_probe())
-    #elif HAS_SERVO_ENDSTOPS
-      #define _Z_SERVO_TEST       true                  // servo.move X, Y, Z
-      #define _Z_PROBE_SUBTEST    (axis == Z_AXIS)      // Z is a probe
+    #elif ENABLED(HAS_SERVO_ENDSTOPS)
+      #define _Z_SERVO_TEST       true                  // Z not deployed yet
+      #define _Z_SERVO_SUBTEST    (axis == Z_AXIS)      // Z is a probe
     #endif
 
-    if (axis == Z_AXIS) {
-      // If there's a Z probe that needs deployment...
-      #if ENABLED(Z_PROBE_SLED) || SERVO_LEVELING || ENABLED(FIX_MOUNTED_PROBE)
-        // ...and homing Z towards the bed? Deploy it.
-        if (axis_home_dir < 0) _Z_DEPLOY;
-      #endif
-    }
+    // If there's a Z probe that needs deployment...
+    #if ENABLED(Z_PROBE_SLED) || SERVO_LEVELING || ENABLED(FIX_MOUNTED_PROBE)
+      // ...and homing Z towards the bed? Deploy it.
+      if (axis == Z_AXIS && axis_home_dir < 0) {
+        #if ENABLED(DEBUG_LEVELING_FEATURE)
+          if (DEBUGGING(LEVELING)) SERIAL_ECHOLNPGM("> SERVO_LEVELING > " STRINGIFY(_Z_DEPLOY));
+        #endif
+        _Z_DEPLOY;
+      }
+    #endif
 
-    #if HAS_SERVO_ENDSTOPS
-      // Engage an X or Y Servo endstop if enabled
+    #if ENABLED(HAS_SERVO_ENDSTOPS)
+      // Engage an X, Y (or Z) Servo endstop if enabled
       if (_Z_SERVO_TEST && servo_endstop_id[axis] >= 0) {
         servo[servo_endstop_id[axis]].move(servo_endstop_angle[axis][0]);
-        if (_Z_PROBE_SUBTEST) endstops.z_probe_enabled = true;
+        if (_Z_SERVO_SUBTEST) endstops.z_probe_enabled = true;
       }
     #endif
 
@@ -2316,7 +2314,7 @@ static void homeaxis(AxisEnum axis) {
     axis_known_position[axis] = true;
     axis_homed[axis] = true;
 
-    // Put away the Z probe
+    // Put away the Z probe with a function
     #if ENABLED(Z_PROBE_SLED) || SERVO_LEVELING || ENABLED(FIX_MOUNTED_PROBE)
       if (axis == Z_AXIS && axis_home_dir < 0) {
         #if ENABLED(DEBUG_LEVELING_FEATURE)
@@ -2326,16 +2324,32 @@ static void homeaxis(AxisEnum axis) {
       }
     #endif
 
-    // Retract Servo endstop if enabled
-    #if HAS_SERVO_ENDSTOPS
+    // Retract X, Y (or Z) Servo endstop if enabled
+    #if ENABLED(HAS_SERVO_ENDSTOPS)
       if (_Z_SERVO_TEST && servo_endstop_id[axis] >= 0) {
+        // Raise the servo probe before stow outside ABL context.
+        // This is a workaround to allow use of a Servo Probe without
+        // ABL until more global probe handling is implemented.
+        #if Z_RAISE_AFTER_PROBING > 0
+          if (axis == Z_AXIS) {
+            #if ENABLED(DEBUG_LEVELING_FEATURE)
+              if (DEBUGGING(LEVELING)) SERIAL_ECHOPAIR("Raise Z (after) by ", Z_RAISE_AFTER_PROBING);
+            #endif
+            current_position[Z_AXIS] = Z_RAISE_AFTER_PROBING;
+            feedrate = homing_feedrate[Z_AXIS];
+            line_to_current_position();
+            stepper.synchronize();
+          }
+        #endif
+
         #if ENABLED(DEBUG_LEVELING_FEATURE)
           if (DEBUGGING(LEVELING)) SERIAL_ECHOLNPGM("> SERVO_ENDSTOPS > Stow with servo.move()");
         #endif
         servo[servo_endstop_id[axis]].move(servo_endstop_angle[axis][1]);
-        if (_Z_PROBE_SUBTEST) endstops.enable_z_probe(false);
+        if (_Z_SERVO_SUBTEST) endstops.enable_z_probe(false);
       }
-    #endif
+
+    #endif // HAS_SERVO_ENDSTOPS
 
   }
 
@@ -2630,8 +2644,16 @@ inline void gcode_G28() {
    * on again when homing all axis
    */
   #if ENABLED(MESH_BED_LEVELING)
-    uint8_t mbl_was_active = mbl.active;
-    mbl.active = false;
+    float pre_home_z = MESH_HOME_SEARCH_Z;
+    if (mbl.active()) {
+      // Save known Z position if already homed
+      if (axis_homed[X_AXIS] && axis_homed[Y_AXIS] && axis_homed[Z_AXIS]) {
+        pre_home_z = current_position[Z_AXIS];
+        pre_home_z += mbl.get_z(current_position[X_AXIS] - home_offset[X_AXIS],
+                                current_position[Y_AXIS] - home_offset[Y_AXIS]);
+      }
+      mbl.set_active(false);
+    }
   #endif
 
   setup_for_endstop_move();
@@ -2931,20 +2953,31 @@ inline void gcode_G28() {
 
   // Enable mesh leveling again
   #if ENABLED(MESH_BED_LEVELING)
-    if (mbl_was_active && home_all_axis) {
-      current_position[Z_AXIS] = MESH_HOME_SEARCH_Z;
-      sync_plan_position();
-      mbl.active = 1;
-      #if ENABLED(MESH_G28_REST_ORIGIN)
-        current_position[Z_AXIS] = 0.0;
-        set_destination_to_current();
-        feedrate = homing_feedrate[Z_AXIS];
-        line_to_destination();
-        stepper.synchronize();
-      #endif
-      #if ENABLED(DEBUG_LEVELING_FEATURE)
-        if (DEBUGGING(LEVELING)) DEBUG_POS("mbl_was_active", current_position);
-      #endif
+    if (mbl.has_mesh()) {
+      if (home_all_axis || (axis_homed[X_AXIS] && axis_homed[Y_AXIS] && homeZ)) {
+        current_position[Z_AXIS] = MESH_HOME_SEARCH_Z;
+        sync_plan_position();
+        mbl.set_active(true);
+        #if ENABLED(MESH_G28_REST_ORIGIN)
+          current_position[Z_AXIS] = 0.0;
+          set_destination_to_current();
+          feedrate = homing_feedrate[Z_AXIS];
+          line_to_destination();
+          stepper.synchronize();
+        #else
+          current_position[Z_AXIS] = MESH_HOME_SEARCH_Z -
+            mbl.get_z(current_position[X_AXIS] - home_offset[X_AXIS],
+                      current_position[Y_AXIS] - home_offset[Y_AXIS]);
+        #endif
+      }
+      else if ((axis_homed[X_AXIS] && axis_homed[Y_AXIS] && axis_homed[Z_AXIS]) && (homeX || homeY)) {
+        current_position[Z_AXIS] = pre_home_z;
+        sync_plan_position();
+        mbl.set_active(true);
+        current_position[Z_AXIS] = pre_home_z -
+          mbl.get_z(current_position[X_AXIS] - home_offset[X_AXIS],
+                    current_position[Y_AXIS] - home_offset[Y_AXIS]);
+      }
     }
   #endif
 
@@ -2964,7 +2997,7 @@ inline void gcode_G28() {
 
 #if ENABLED(MESH_BED_LEVELING)
 
-  enum MeshLevelingState { MeshReport, MeshStart, MeshNext, MeshSet, MeshSetZOffset };
+  enum MeshLevelingState { MeshReport, MeshStart, MeshNext, MeshSet, MeshSetZOffset, MeshReset };
 
   inline void _mbl_goto_xy(float x, float y) {
     saved_feedrate = feedrate;
@@ -3001,6 +3034,7 @@ inline void gcode_G28() {
    *  S2              Probe the next mesh point
    *  S3 Xn Yn Zn.nn  Manually modify a single point
    *  S4 Zn.nn        Set z offset. Positive away from bed, negative closer to bed.
+   *  S5              Reset and disable mesh
    *
    * The S0 report the points as below
    *
@@ -3014,8 +3048,8 @@ inline void gcode_G28() {
 
     static int probe_point = -1;
     MeshLevelingState state = code_seen('S') ? (MeshLevelingState)code_value_short() : MeshReport;
-    if (state < 0 || state > 4) {
-      SERIAL_PROTOCOLLNPGM("S out of range (0-4).");
+    if (state < 0 || state > 5) {
+      SERIAL_PROTOCOLLNPGM("S out of range (0-5).");
       return;
     }
 
@@ -3024,8 +3058,13 @@ inline void gcode_G28() {
 
     switch (state) {
       case MeshReport:
-        if (mbl.active) {
-          SERIAL_PROTOCOLPGM("Num X,Y: ");
+        if (mbl.has_mesh()) {
+          SERIAL_PROTOCOLPGM("State: ");
+          if (mbl.active())
+            SERIAL_PROTOCOLPGM("On");
+          else
+            SERIAL_PROTOCOLPGM("Off");
+          SERIAL_PROTOCOLPGM("\nNum X,Y: ");
           SERIAL_PROTOCOL(MESH_NUM_X_POINTS);
           SERIAL_PROTOCOLCHAR(',');
           SERIAL_PROTOCOL(MESH_NUM_Y_POINTS);
@@ -3086,7 +3125,7 @@ inline void gcode_G28() {
           // After recording the last point, activate the mbl and home
           SERIAL_PROTOCOLLNPGM("Mesh probing done.");
           probe_point = -1;
-          mbl.active = true;
+          mbl.set_has_mesh(true);
           enqueue_and_echo_commands_P(PSTR("G28"));
         }
         break;
@@ -3133,6 +3172,19 @@ inline void gcode_G28() {
           return;
         }
         mbl.z_offset = z;
+        break;
+
+      case MeshReset:
+        if (mbl.active()) {
+          current_position[Z_AXIS] +=
+            mbl.get_z(current_position[X_AXIS] - home_offset[X_AXIS],
+                      current_position[Y_AXIS] - home_offset[Y_AXIS]) - MESH_HOME_SEARCH_Z;
+          mbl.reset();
+          sync_plan_position();
+        }
+        else
+          mbl.reset();
+
     } // switch(state)
 
     report_current_position();
@@ -3564,7 +3616,7 @@ inline void gcode_G28() {
       // Allen Key Probe for Delta
       #if ENABLED(Z_PROBE_ALLEN_KEY) || SERVO_LEVELING
         stow_z_probe();
-      #elif Z_RAISE_AFTER_PROBING > 0
+      #else
         raise_z_after_probing(); // for non Allen Key probes, such as simple mechanical probe
       #endif
     #else // !DELTA
@@ -3624,7 +3676,7 @@ inline void gcode_G28() {
         #endif
 
         current_position[Z_AXIS] = -zprobe_zoffset + (z_tmp - real_z)
-          #if HAS_SERVO_ENDSTOPS || ENABLED(Z_PROBE_ALLEN_KEY) || ENABLED(Z_PROBE_SLED)
+          #if ENABLED(HAS_SERVO_ENDSTOPS) || ENABLED(Z_PROBE_ALLEN_KEY) || ENABLED(Z_PROBE_SLED)
              + Z_RAISE_AFTER_PROBING
           #endif
           ;
@@ -3639,9 +3691,9 @@ inline void gcode_G28() {
       // Sled assembly for Cartesian bots
       #if ENABLED(Z_PROBE_SLED)
         dock_sled(true); // dock the sled
-      #elif Z_RAISE_AFTER_PROBING > 0
+      #else
         // Raise Z axis for non-delta and non servo based probes
-        #if !defined(HAS_SERVO_ENDSTOPS) && DISABLED(Z_PROBE_ALLEN_KEY) && DISABLED(Z_PROBE_SLED)
+        #if DISABLED(HAS_SERVO_ENDSTOPS) && DISABLED(Z_PROBE_ALLEN_KEY) && DISABLED(Z_PROBE_SLED)
           raise_z_after_probing();
         #endif
       #endif
@@ -3685,7 +3737,7 @@ inline void gcode_G28() {
      * G30: Do a single Z probe at the current XY
      */
     inline void gcode_G30() {
-      #if HAS_SERVO_ENDSTOPS
+      #if ENABLED(HAS_SERVO_ENDSTOPS)
         raise_z_for_servo();
       #endif
       deploy_z_probe(); // Engage Z Servo endstop if available. Z_PROBE_SLED is missed here.
@@ -3707,7 +3759,7 @@ inline void gcode_G28() {
 
       clean_up_after_endstop_move(); // Too early. must be done after the stowing.
 
-      #if HAS_SERVO_ENDSTOPS
+      #if ENABLED(HAS_SERVO_ENDSTOPS)
         raise_z_for_servo();
       #endif
       stow_z_probe(false); // Retract Z Servo endstop if available. Z_PROBE_SLED is missed here.
@@ -4348,6 +4400,10 @@ inline void gcode_M104() {
   if (get_target_extruder_from_command(104)) return;
   if (DEBUGGING(DRYRUN)) return;
 
+  #if ENABLED(SINGLENOZZLE)
+    if (target_extruder != active_extruder) return;
+  #endif
+
   if (code_seen('S')) {
     float temp = code_value();
     thermalManager.setTargetHotend(temp, target_extruder);
@@ -4393,8 +4449,8 @@ inline void gcode_M104() {
       SERIAL_PROTOCOLPGM(" /");
       SERIAL_PROTOCOL_F(thermalManager.degTargetBed(), 1);
     #endif
-    #if EXTRUDERS > 1
-      for (int8_t e = 0; e < EXTRUDERS; ++e) {
+    #if HOTENDS > 1
+      for (int8_t e = 0; e < HOTENDS; ++e) {
         SERIAL_PROTOCOLPGM(" T");
         SERIAL_PROTOCOL(e);
         SERIAL_PROTOCOLCHAR(':');
@@ -4419,8 +4475,8 @@ inline void gcode_M104() {
     #else
       SERIAL_PROTOCOL(thermalManager.getHeaterPower(target_extruder));
     #endif
-    #if EXTRUDERS > 1
-      for (int8_t e = 0; e < EXTRUDERS; ++e) {
+    #if HOTENDS > 1
+      for (int8_t e = 0; e < HOTENDS; ++e) {
         SERIAL_PROTOCOLPGM(" @");
         SERIAL_PROTOCOL(e);
         SERIAL_PROTOCOLCHAR(':');
@@ -4439,13 +4495,13 @@ inline void gcode_M104() {
         SERIAL_PROTOCOLPGM("C->");
         SERIAL_PROTOCOL_F(thermalManager.rawBedTemp() / OVERSAMPLENR, 0);
       #endif
-      for (int8_t cur_extruder = 0; cur_extruder < EXTRUDERS; ++cur_extruder) {
+      for (int8_t cur_hotend = 0; cur_hotend < HOTENDS; ++cur_hotend) {
         SERIAL_PROTOCOLPGM("  T");
-        SERIAL_PROTOCOL(cur_extruder);
+        SERIAL_PROTOCOL(cur_hotend);
         SERIAL_PROTOCOLCHAR(':');
-        SERIAL_PROTOCOL_F(thermalManager.degHotend(cur_extruder), 1);
+        SERIAL_PROTOCOL_F(thermalManager.degHotend(cur_hotend), 1);
         SERIAL_PROTOCOLPGM("C->");
-        SERIAL_PROTOCOL_F(thermalManager.rawHotendTemp(cur_extruder) / OVERSAMPLENR, 0);
+        SERIAL_PROTOCOL_F(thermalManager.rawHotendTemp(cur_hotend) / OVERSAMPLENR, 0);
       }
     #endif
   }
@@ -4501,6 +4557,10 @@ inline void gcode_M109() {
 
   if (get_target_extruder_from_command(109)) return;
   if (DEBUGGING(DRYRUN)) return;
+
+  #if ENABLED(SINGLENOZZLE)
+    if (target_extruder != active_extruder) return;
+  #endif
 
   bool no_wait_for_cooling = code_seen('S');
   if (no_wait_for_cooling || code_seen('R')) {
@@ -5377,7 +5437,7 @@ inline void gcode_M206() {
 
 #endif // FWRETRACT
 
-#if EXTRUDERS > 1
+#if HOTENDS > 1
 
   /**
    * M218 - set hotend offset (in mm)
@@ -5390,29 +5450,29 @@ inline void gcode_M206() {
   inline void gcode_M218() {
     if (get_target_extruder_from_command(218)) return;
 
-    if (code_seen('X')) extruder_offset[X_AXIS][target_extruder] = code_value();
-    if (code_seen('Y')) extruder_offset[Y_AXIS][target_extruder] = code_value();
+    if (code_seen('X')) hotend_offset[X_AXIS][target_extruder] = code_value();
+    if (code_seen('Y')) hotend_offset[Y_AXIS][target_extruder] = code_value();
 
     #if ENABLED(DUAL_X_CARRIAGE)
-      if (code_seen('Z')) extruder_offset[Z_AXIS][target_extruder] = code_value();
+      if (code_seen('Z')) hotend_offset[Z_AXIS][target_extruder] = code_value();
     #endif
 
     SERIAL_ECHO_START;
     SERIAL_ECHOPGM(MSG_HOTEND_OFFSET);
-    for (int e = 0; e < EXTRUDERS; e++) {
+    for (int e = 0; e < HOTENDS; e++) {
       SERIAL_CHAR(' ');
-      SERIAL_ECHO(extruder_offset[X_AXIS][e]);
+      SERIAL_ECHO(hotend_offset[X_AXIS][e]);
       SERIAL_CHAR(',');
-      SERIAL_ECHO(extruder_offset[Y_AXIS][e]);
+      SERIAL_ECHO(hotend_offset[Y_AXIS][e]);
       #if ENABLED(DUAL_X_CARRIAGE)
         SERIAL_CHAR(',');
-        SERIAL_ECHO(extruder_offset[Z_AXIS][e]);
+        SERIAL_ECHO(hotend_offset[Z_AXIS][e]);
       #endif
     }
     SERIAL_EOL;
   }
 
-#endif // EXTRUDERS > 1
+#endif // HOTENDS > 1
 
 /**
  * M220: Set speed percentage factor, aka "Feed Rate" (M220 S95)
@@ -5542,7 +5602,7 @@ inline void gcode_M226() {
     // default behaviour (omitting E parameter) is to update for extruder 0 only
     int e = code_seen('E') ? code_value() : 0; // extruder being updated
 
-    if (e < EXTRUDERS) { // catch bad input value
+    if (e < HOTENDS) { // catch bad input value
       if (code_seen('P')) PID_PARAM(Kp, e) = code_value();
       if (code_seen('I')) PID_PARAM(Ki, e) = scalePID_i(code_value());
       if (code_seen('D')) PID_PARAM(Kd, e) = scalePID_d(code_value());
@@ -5554,10 +5614,10 @@ inline void gcode_M226() {
 
       thermalManager.updatePID();
       SERIAL_ECHO_START;
-      #if ENABLED(PID_PARAMS_PER_EXTRUDER)
+      #if ENABLED(PID_PARAMS_PER_HOTEND)
         SERIAL_ECHO(" e:"); // specify extruder in serial output
         SERIAL_ECHO(e);
-      #endif // PID_PARAMS_PER_EXTRUDER
+      #endif // PID_PARAMS_PER_HOTEND
       SERIAL_ECHO(" p:");
       SERIAL_ECHO(PID_PARAM(Kp, e));
       SERIAL_ECHO(" i:");
@@ -5641,7 +5701,7 @@ inline void gcode_M226() {
    * M250: Read and optionally set the LCD contrast
    */
   inline void gcode_M250() {
-    if (code_seen('C')) lcd_setcontrast(code_value_short() & 0x3F);
+    if (code_seen('C')) set_lcd_contrast(code_value_short());
     SERIAL_PROTOCOLPGM("lcd contrast value: ");
     SERIAL_PROTOCOL(lcd_contrast);
     SERIAL_EOL;
@@ -5676,7 +5736,7 @@ inline void gcode_M303() {
 
     float temp = code_seen('S') ? code_value() : (e < 0 ? 70.0 : 150.0);
 
-    if (e >= 0 && e < EXTRUDERS)
+    if (e >= 0 && e < HOTENDS)
       target_extruder = e;
 
     KEEPALIVE_STATE(NOT_BUSY); // don't send "busy: processing" messages during autotune output
@@ -5816,13 +5876,13 @@ inline void gcode_M303() {
  */
 inline void gcode_M400() { stepper.synchronize(); }
 
-#if ENABLED(AUTO_BED_LEVELING_FEATURE) && DISABLED(Z_PROBE_SLED) && (HAS_SERVO_ENDSTOPS || ENABLED(Z_PROBE_ALLEN_KEY))
+#if ENABLED(AUTO_BED_LEVELING_FEATURE) && DISABLED(Z_PROBE_SLED) && (ENABLED(HAS_SERVO_ENDSTOPS) || ENABLED(Z_PROBE_ALLEN_KEY))
 
   /**
    * M401: Engage Z Servo endstop if available
    */
   inline void gcode_M401() {
-    #if HAS_SERVO_ENDSTOPS
+    #if ENABLED(HAS_SERVO_ENDSTOPS)
       raise_z_for_servo();
     #endif
     deploy_z_probe();
@@ -5832,13 +5892,13 @@ inline void gcode_M400() { stepper.synchronize(); }
    * M402: Retract Z Servo endstop if enabled
    */
   inline void gcode_M402() {
-    #if HAS_SERVO_ENDSTOPS
+    #if ENABLED(HAS_SERVO_ENDSTOPS)
       raise_z_for_servo();
     #endif
     stow_z_probe(false);
   }
 
-#endif // AUTO_BED_LEVELING_FEATURE && (HAS_SERVO_ENDSTOPS || Z_PROBE_ALLEN_KEY) && !Z_PROBE_SLED
+#endif // AUTO_BED_LEVELING_FEATURE && (ENABLED(HAS_SERVO_ENDSTOPS) || Z_PROBE_ALLEN_KEY) && !Z_PROBE_SLED
 
 #if ENABLED(FILAMENT_WIDTH_SENSOR)
 
@@ -5930,7 +5990,7 @@ inline void gcode_M410() {
   /**
    * M420: Enable/Disable Mesh Bed Leveling
    */
-  inline void gcode_M420() { if (code_seen('S') && code_has_value()) mbl.active = !!code_value_short(); }
+  inline void gcode_M420() { if (code_seen('S') && code_has_value()) mbl.set_has_mesh(!!code_value_short()); }
 
   /**
    * M421: Set a single Mesh Bed Leveling Z coordinate
@@ -6005,7 +6065,11 @@ inline void gcode_M428() {
   }
 
   if (!err) {
-    sync_plan_position();
+    #if ENABLED(DELTA) || ENABLED(SCARA)
+      sync_plan_position_delta();
+    #else
+      sync_plan_position();
+    #endif
     report_current_position();
     LCD_MESSAGEPGM(MSG_HOME_OFFSETS_APPLIED);
     #if HAS_BUZZER
@@ -6254,13 +6318,13 @@ inline void gcode_M503() {
         SERIAL_ECHO_START;
         SERIAL_ECHOPGM(MSG_HOTEND_OFFSET);
         SERIAL_CHAR(' ');
-        SERIAL_ECHO(extruder_offset[X_AXIS][0]);
+        SERIAL_ECHO(hotend_offset[X_AXIS][0]);
         SERIAL_CHAR(',');
-        SERIAL_ECHO(extruder_offset[Y_AXIS][0]);
+        SERIAL_ECHO(hotend_offset[Y_AXIS][0]);
         SERIAL_CHAR(' ');
         SERIAL_ECHO(duplicate_extruder_x_offset);
         SERIAL_CHAR(',');
-        SERIAL_ECHOLN(extruder_offset[Y_AXIS][1]);
+        SERIAL_ECHOLN(hotend_offset[Y_AXIS][1]);
         break;
       case DXC_FULL_CONTROL_MODE:
       case DXC_AUTO_PARK_MODE:
@@ -6418,7 +6482,7 @@ inline void gcode_T(uint8_t tmp_extruder) {
     #endif
   }
 
-  #if EXTRUDERS > 1
+  #if HOTENDS > 1
     if (tmp_extruder != active_extruder) {
       // Save current position to return to after applying extruder offset
       set_destination_to_current();
@@ -6436,8 +6500,8 @@ inline void gcode_T(uint8_t tmp_extruder) {
         }
 
         // apply Y & Z extruder offset (x offset is already used in determining home pos)
-        current_position[Y_AXIS] -= extruder_offset[Y_AXIS][active_extruder] - extruder_offset[Y_AXIS][tmp_extruder];
-        current_position[Z_AXIS] -= extruder_offset[Z_AXIS][active_extruder] - extruder_offset[Z_AXIS][tmp_extruder];
+        current_position[Y_AXIS] -= hotend_offset[Y_AXIS][active_extruder] - hotend_offset[Y_AXIS][tmp_extruder];
+        current_position[Z_AXIS] -= hotend_offset[Z_AXIS][active_extruder] - hotend_offset[Z_AXIS][tmp_extruder];
         active_extruder = tmp_extruder;
 
         // This function resets the max/min values - the current position may be overwritten below.
@@ -6467,11 +6531,11 @@ inline void gcode_T(uint8_t tmp_extruder) {
       #else // !DUAL_X_CARRIAGE
         #if ENABLED(AUTO_BED_LEVELING_FEATURE)
           // Offset extruder, make sure to apply the bed level rotation matrix
-          vector_3 tmp_offset_vec = vector_3(extruder_offset[X_AXIS][tmp_extruder],
-                                             extruder_offset[Y_AXIS][tmp_extruder],
+          vector_3 tmp_offset_vec = vector_3(hotend_offset[X_AXIS][tmp_extruder],
+                                             hotend_offset[Y_AXIS][tmp_extruder],
                                              0),
-                   act_offset_vec = vector_3(extruder_offset[X_AXIS][active_extruder],
-                                             extruder_offset[Y_AXIS][active_extruder],
+                   act_offset_vec = vector_3(hotend_offset[X_AXIS][active_extruder],
+                                             hotend_offset[Y_AXIS][active_extruder],
                                              0),
                    offset_vec = tmp_offset_vec - act_offset_vec;
 
@@ -6503,7 +6567,7 @@ inline void gcode_T(uint8_t tmp_extruder) {
 
           // The newly-selected extruder is actually at...
           for (int i=X_AXIS; i<=Y_AXIS; i++) {
-            float diff = extruder_offset[i][tmp_extruder] - extruder_offset[i][active_extruder];
+            float diff = hotend_offset[i][tmp_extruder] - hotend_offset[i][active_extruder];
             current_position[i] += diff;
             position_shift[i] += diff; // Offset the coordinate space
             update_software_endstops((AxisEnum)i);
@@ -6534,7 +6598,7 @@ inline void gcode_T(uint8_t tmp_extruder) {
       enable_solenoid_on_active_extruder();
     #endif // EXT_SOLENOID
 
-  #endif // EXTRUDERS > 1
+  #endif // HOTENDS > 1
 
   feedrate = stored_feedrate;
 
@@ -6965,7 +7029,7 @@ void process_next_command() {
           break;
       #endif // FWRETRACT
 
-      #if EXTRUDERS > 1
+      #if HOTENDS > 1
         case 218: // M218 - set hotend offset (in mm), T<extruder_number> X<offset_on_X> Y<offset_on_Y>
           gcode_M218();
           break;
@@ -7054,14 +7118,14 @@ void process_next_command() {
         gcode_M400();
         break;
 
-      #if ENABLED(AUTO_BED_LEVELING_FEATURE) && (HAS_SERVO_ENDSTOPS || ENABLED(Z_PROBE_ALLEN_KEY)) && DISABLED(Z_PROBE_SLED)
+      #if ENABLED(AUTO_BED_LEVELING_FEATURE) && (ENABLED(HAS_SERVO_ENDSTOPS) || ENABLED(Z_PROBE_ALLEN_KEY)) && DISABLED(Z_PROBE_SLED)
         case 401:
           gcode_M401();
           break;
         case 402:
           gcode_M402();
           break;
-      #endif // AUTO_BED_LEVELING_FEATURE && (HAS_SERVO_ENDSTOPS || Z_PROBE_ALLEN_KEY) && !Z_PROBE_SLED
+      #endif // AUTO_BED_LEVELING_FEATURE && (ENABLED(HAS_SERVO_ENDSTOPS) || Z_PROBE_ALLEN_KEY) && !Z_PROBE_SLED
 
       #if ENABLED(FILAMENT_WIDTH_SENSOR)
         case 404:  //M404 Enter the nominal filament width (3mm, 1.75mm ) N<3.0> or display nominal filament width
@@ -7317,15 +7381,15 @@ void clamp_to_software_endstops(float target[3]) {
 
 // This function is used to split lines on mesh borders so each segment is only part of one mesh area
 void mesh_buffer_line(float x, float y, float z, const float e, float feed_rate, const uint8_t& extruder, uint8_t x_splits = 0xff, uint8_t y_splits = 0xff) {
-  if (!mbl.active) {
+  if (!mbl.active()) {
     planner.buffer_line(x, y, z, e, feed_rate, extruder);
     set_current_to_destination();
     return;
   }
-  int pcx = mbl.cel_index_x(current_position[X_AXIS] - home_offset[X_AXIS]);
-  int pcy = mbl.cel_index_y(current_position[Y_AXIS] - home_offset[Y_AXIS]);
-  int cx = mbl.cel_index_x(x - home_offset[X_AXIS]);
-  int cy = mbl.cel_index_y(y - home_offset[Y_AXIS]);
+  int pcx = mbl.cell_index_x(current_position[X_AXIS] - home_offset[X_AXIS]);
+  int pcy = mbl.cell_index_y(current_position[Y_AXIS] - home_offset[Y_AXIS]);
+  int cx = mbl.cell_index_x(x - home_offset[X_AXIS]);
+  int cy = mbl.cell_index_y(y - home_offset[Y_AXIS]);
   NOMORE(pcx, MESH_NUM_X_POINTS - 2);
   NOMORE(pcy, MESH_NUM_Y_POINTS - 2);
   NOMORE(cx,  MESH_NUM_X_POINTS - 2);
@@ -7835,8 +7899,8 @@ void prepare_move() {
     float max_temp = 0.0;
     if (ELAPSED(millis(), next_status_led_update_ms)) {
       next_status_led_update_ms += 500; // Update every 0.5s
-      for (int8_t cur_extruder = 0; cur_extruder < EXTRUDERS; ++cur_extruder)
-        max_temp = max(max(max_temp, thermalManager.degHotend(cur_extruder)), thermalManager.degTargetHotend(cur_extruder));
+      for (int8_t cur_hotend = 0; cur_hotend < HOTENDS; ++cur_hotend)
+        max_temp = max(max(max_temp, thermalManager.degHotend(cur_hotend)), thermalManager.degTargetHotend(cur_hotend));
       #if HAS_TEMP_BED
         max_temp = max(max(max_temp, thermalManager.degTargetBed()), thermalManager.degBed());
       #endif
