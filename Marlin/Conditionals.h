@@ -43,11 +43,19 @@
 #endif
 
 #ifndef CONFIGURATION_LCD // Get the LCD defines which are needed first
-
-  #define CONFIGURATION_LCD
+#define CONFIGURATION_LCD
 
   #define LCD_HAS_DIRECTIONAL_BUTTONS (BUTTON_EXISTS(UP) || BUTTON_EXISTS(DWN) || BUTTON_EXISTS(LFT) || BUTTON_EXISTS(RT))
 
+  #if ENABLED(CARTESIO_UI)
+    #define DOGLCD
+    #define ULTIPANEL
+    #define NEWPANEL
+    #define DEFAULT_LCD_CONTRAST 90
+    #define LCD_CONTRAST_MIN 60
+    #define LCD_CONTRAST_MAX 140
+  #endif
+  
   #if ENABLED(MAKRPANEL) || ENABLED(MINIPANEL)
     #define DOGLCD
     #define ULTIPANEL
@@ -61,10 +69,14 @@
     #define ULTIMAKERCONTROLLER //as available from the Ultimaker online store.
 
     #if ENABLED(miniVIKI)
+      #define LCD_CONTRAST_MIN  75
+      #define LCD_CONTRAST_MAX 115
       #define DEFAULT_LCD_CONTRAST 95
     #elif ENABLED(VIKI2)
       #define DEFAULT_LCD_CONTRAST 40
     #elif ENABLED(ELB_FULL_GRAPHIC_CONTROLLER)
+      #define LCD_CONTRAST_MIN  90
+      #define LCD_CONTRAST_MAX 130
       #define DEFAULT_LCD_CONTRAST 110
       #define U8GLIB_LM6059_AF
       #define SD_DETECT_INVERTED
@@ -74,13 +86,13 @@
     #define ENCODER_STEPS_PER_MENU_ITEM 1
   #endif
 
-  // Generic support for SSD1306 OLED based LCDs.
-  #if ENABLED(U8GLIB_SSD1306)
+  // Generic support for SSD1306 / SH1106 OLED based LCDs.
+  #if ENABLED(U8GLIB_SSD1306) || ENABLED(U8GLIB_SH1106)
     #define ULTRA_LCD  //general LCD support, also 16x2
-    #define DOGLCD  // Support for I2C LCD 128x64 (Controller SSD1306 graphic Display Family)
+    #define DOGLCD  // Support for I2C LCD 128x64 (Controller SSD1306 / SH1106 graphic Display Family)
   #endif
 
-  #if ENABLED(PANEL_ONE)
+  #if ENABLED(PANEL_ONE) || ENABLED(U8GLIB_SH1106)
     #define ULTIMAKERCONTROLLER
   #endif
 
@@ -148,11 +160,6 @@
 
     #ifndef ENCODER_STEPS_PER_MENU_ITEM
       #define ENCODER_STEPS_PER_MENU_ITEM 1
-    #endif
-
-    #if ENABLED(LCD_USE_I2C_BUZZER)
-      #define LCD_FEEDBACK_FREQUENCY_HZ 1000
-      #define LCD_FEEDBACK_FREQUENCY_DURATION_MS 100
     #endif
 
     #define ULTIPANEL
@@ -245,15 +252,24 @@
    * Default LCD contrast for dogm-like LCD displays
    */
   #if ENABLED(DOGLCD)
-    #if !defined(DEFAULT_LCD_CONTRAST)
-      #define DEFAULT_LCD_CONTRAST 32
-    #endif
-    #define HAS_LCD_CONTRAST
-    #if ENABLED(U8GLIB_ST7920)
-      #undef HAS_LCD_CONTRAST
-    #endif
-    #if ENABLED(U8GLIB_SSD1306)
-      #undef HAS_LCD_CONTRAST
+
+    #define HAS_LCD_CONTRAST ( \
+        ENABLED(MAKRPANEL) \
+     || ENABLED(VIKI2) \
+     || ENABLED(miniVIKI) \
+     || ENABLED(ELB_FULL_GRAPHIC_CONTROLLER) \
+    )
+
+    #if HAS_LCD_CONTRAST
+      #ifndef LCD_CONTRAST_MIN
+        #define LCD_CONTRAST_MIN 0
+      #endif
+      #ifndef LCD_CONTRAST_MAX
+        #define LCD_CONTRAST_MAX 63
+      #endif
+      #ifndef DEFAULT_LCD_CONTRAST
+        #define DEFAULT_LCD_CONTRAST 32
+      #endif
     #endif
   #endif
 
@@ -347,9 +363,11 @@
   #endif //!MANUAL_HOME_POSITIONS
 
   /**
-   * Auto Bed Leveling
+   * Auto Bed Leveling and Z Probe Repeatability Test
    */
-  #if ENABLED(AUTO_BED_LEVELING_FEATURE)
+  #define HAS_PROBING_PROCEDURE (ENABLED(AUTO_BED_LEVELING_FEATURE) || ENABLED(Z_MIN_PROBE_REPEATABILITY_TEST))
+
+  #if HAS_PROBING_PROCEDURE
     // Boundaries for probing based on set limits
     #define MIN_PROBE_X (max(X_MIN_POS, X_MIN_POS + X_PROBE_OFFSET_FROM_EXTRUDER))
     #define MAX_PROBE_X (min(X_MAX_POS, X_MAX_POS + X_PROBE_OFFSET_FROM_EXTRUDER))
@@ -357,31 +375,24 @@
     #define MAX_PROBE_Y (min(Y_MAX_POS, Y_MAX_POS + Y_PROBE_OFFSET_FROM_EXTRUDER))
   #endif
 
-  #define HAS_Z_ENDSTOP_SERVO (defined(Z_ENDSTOP_SERVO_NR) && Z_ENDSTOP_SERVO_NR >= 0)
-  #define SERVO_LEVELING (ENABLED(AUTO_BED_LEVELING_FEATURE) && HAS_Z_ENDSTOP_SERVO)
+  #define HAS_Z_SERVO_ENDSTOP (defined(Z_ENDSTOP_SERVO_NR) && Z_ENDSTOP_SERVO_NR >= 0)
 
   /**
-   * Sled Options
+   * Z Sled Probe requires Z_SAFE_HOMING
    */
   #if ENABLED(Z_PROBE_SLED)
     #define Z_SAFE_HOMING
   #endif
 
   /**
-   * Z Safe Homing dependencies
+   * Safe Homing Options
    */
   #if ENABLED(Z_SAFE_HOMING)
-    #ifndef X_PROBE_OFFSET_FROM_EXTRUDER
-      #define X_PROBE_OFFSET_FROM_EXTRUDER 0
+    #ifndef Z_SAFE_HOMING_X_POINT
+      #define Z_SAFE_HOMING_X_POINT ((X_MIN_POS + X_MAX_POS) / 2)
     #endif
-    #ifndef Y_PROBE_OFFSET_FROM_EXTRUDER
-      #define Y_PROBE_OFFSET_FROM_EXTRUDER 0
-    #endif
-    #ifndef Z_PROBE_OFFSET_FROM_EXTRUDER
-      #define Z_PROBE_OFFSET_FROM_EXTRUDER 0
-    #endif
-    #ifndef XY_TRAVEL_SPEED
-      #define XY_TRAVEL_SPEED 4000
+    #ifndef Z_SAFE_HOMING_Y_POINT
+      #define Z_SAFE_HOMING_Y_POINT ((Y_MIN_POS + Y_MAX_POS) / 2)
     #endif
   #endif
 
@@ -413,7 +424,7 @@
    */
   #if ENABLED(ADVANCE)
     #define EXTRUSION_AREA (0.25 * (D_FILAMENT) * (D_FILAMENT) * M_PI)
-    #define STEPS_PER_CUBIC_MM_E (axis_steps_per_unit[E_AXIS] / (EXTRUSION_AREA))
+    #define STEPS_PER_CUBIC_MM_E (axis_steps_per_mm[E_AXIS] / (EXTRUSION_AREA))
   #endif
 
   #if ENABLED(ULTIPANEL) && DISABLED(ELB_FULL_GRAPHIC_CONTROLLER)
@@ -523,6 +534,21 @@
   #define HAS_PID_FOR_BOTH (ENABLED(PIDTEMP) && ENABLED(PIDTEMPBED))
 
   /**
+   * SINGLENOZZLE needs to differentiate EXTRUDERS and HOTENDS
+   * And all "extruders" are in the same place.
+   */
+  #if ENABLED(SINGLENOZZLE)
+    #define HOTENDS 1
+    #undef TEMP_SENSOR_1_AS_REDUNDANT
+    #undef HOTEND_OFFSET_X
+    #undef HOTEND_OFFSET_Y
+    #define HOTEND_OFFSET_X { 0 }
+    #define HOTEND_OFFSET_Y { 0 }
+  #else
+    #define HOTENDS EXTRUDERS
+  #endif
+
+  /**
    * ARRAY_BY_EXTRUDERS based on EXTRUDERS
    */
   #if EXTRUDERS > 3
@@ -538,14 +564,19 @@
   #define ARRAY_BY_EXTRUDERS1(v1) ARRAY_BY_EXTRUDERS(v1, v1, v1, v1)
 
   /**
-   * With SINGLENOZZLE all "extruders" are in the same place
+   * ARRAY_BY_HOTENDS based on HOTENDS
    */
-  #if ENABLED(SINGLENOZZLE)
-    #undef EXTRUDER_OFFSET_X
-    #undef EXTRUDER_OFFSET_Y
-    #define EXTRUDER_OFFSET_X { 0 }
-    #define EXTRUDER_OFFSET_Y { 0 }
+  #if HOTENDS > 3
+    #define ARRAY_BY_HOTENDS(v1, v2, v3, v4) { v1, v2, v3, v4 }
+  #elif HOTENDS > 2
+    #define ARRAY_BY_HOTENDS(v1, v2, v3, v4) { v1, v2, v3 }
+  #elif HOTENDS > 1
+    #define ARRAY_BY_HOTENDS(v1, v2, v3, v4) { v1, v2 }
+  #else
+    #define ARRAY_BY_HOTENDS(v1, v2, v3, v4) { v1 }
   #endif
+
+  #define ARRAY_BY_HOTENDS1(v1) ARRAY_BY_HOTENDS(v1, v1, v1, v1)
 
   /**
    * Z_DUAL_ENDSTOPS endstop reassignment
@@ -616,7 +647,7 @@
   #define HAS_SERVO_2 (PIN_EXISTS(SERVO2))
   #define HAS_SERVO_3 (PIN_EXISTS(SERVO3))
   #define HAS_FILAMENT_WIDTH_SENSOR (PIN_EXISTS(FILWIDTH))
-  #define HAS_FILRUNOUT (PIN_EXISTS(FILRUNOUT))
+  #define HAS_FIL_RUNOUT (PIN_EXISTS(FIL_RUNOUT))
   #define HAS_HOME (PIN_EXISTS(HOME))
   #define HAS_KILL (PIN_EXISTS(KILL))
   #define HAS_SUICIDE (PIN_EXISTS(SUICIDE))
@@ -682,11 +713,11 @@
    * Helper Macros for heaters and extruder fan
    */
   #define WRITE_HEATER_0P(v) WRITE(HEATER_0_PIN, v)
-  #if EXTRUDERS > 1 || ENABLED(HEATERS_PARALLEL)
+  #if HOTENDS > 1 || ENABLED(HEATERS_PARALLEL)
     #define WRITE_HEATER_1(v) WRITE(HEATER_1_PIN, v)
-    #if EXTRUDERS > 2
+    #if HOTENDS > 2
       #define WRITE_HEATER_2(v) WRITE(HEATER_2_PIN, v)
-      #if EXTRUDERS > 3
+      #if HOTENDS > 3
         #define WRITE_HEATER_3(v) WRITE(HEATER_3_PIN, v)
       #endif
     #endif
@@ -728,26 +759,44 @@
   #define HAS_BUZZER (PIN_EXISTS(BEEPER) || defined(LCD_USE_I2C_BUZZER))
 
   #if HAS_SERVOS
-    #ifndef X_ENDSTOP_SERVO_NR
-      #define X_ENDSTOP_SERVO_NR -1
-    #endif
-    #ifndef Y_ENDSTOP_SERVO_NR
-      #define Y_ENDSTOP_SERVO_NR -1
-    #endif
     #ifndef Z_ENDSTOP_SERVO_NR
       #define Z_ENDSTOP_SERVO_NR -1
     #endif
-    #if X_ENDSTOP_SERVO_NR >= 0 || Y_ENDSTOP_SERVO_NR >= 0 || HAS_Z_ENDSTOP_SERVO
-      #define HAS_SERVO_ENDSTOPS true
-      #define SERVO_ENDSTOP_IDS { X_ENDSTOP_SERVO_NR, Y_ENDSTOP_SERVO_NR, Z_ENDSTOP_SERVO_NR }
-    #endif
   #endif
 
-  #define PROBE_SELECTED (ENABLED(FIX_MOUNTED_PROBE) || ENABLED(MECHANICAL_PROBE) || ENABLED(Z_PROBE_ALLEN_KEY) || HAS_Z_ENDSTOP_SERVO || ENABLED(Z_PROBE_SLED))
+  #define PROBE_SELECTED (ENABLED(FIX_MOUNTED_PROBE) || ENABLED(Z_PROBE_ALLEN_KEY) || HAS_Z_SERVO_ENDSTOP || ENABLED(Z_PROBE_SLED))
 
   #define PROBE_PIN_CONFIGURED (HAS_Z_MIN_PROBE_PIN || (HAS_Z_MIN && ENABLED(Z_MIN_PROBE_USES_Z_MIN_ENDSTOP_PIN)))
 
   #define HAS_BED_PROBE (PROBE_SELECTED && PROBE_PIN_CONFIGURED)
+
+  /**
+   * Bed Probe dependencies
+   */
+  #if HAS_BED_PROBE
+    #ifndef X_PROBE_OFFSET_FROM_EXTRUDER
+      #define X_PROBE_OFFSET_FROM_EXTRUDER 0
+    #endif
+    #ifndef Y_PROBE_OFFSET_FROM_EXTRUDER
+      #define Y_PROBE_OFFSET_FROM_EXTRUDER 0
+    #endif
+    #ifndef Z_PROBE_OFFSET_FROM_EXTRUDER
+      #define Z_PROBE_OFFSET_FROM_EXTRUDER 0
+    #endif
+    #ifndef Z_PROBE_OFFSET_RANGE_MIN
+      #define Z_PROBE_OFFSET_RANGE_MIN -20
+    #endif
+    #ifndef Z_PROBE_OFFSET_RANGE_MAX
+      #define Z_PROBE_OFFSET_RANGE_MAX 20
+    #endif
+    #ifndef XY_PROBE_SPEED
+      #ifdef HOMING_FEEDRATE_XYZ
+        #define XY_PROBE_SPEED HOMING_FEEDRATE_XYZ
+      #else
+        #define XY_PROBE_SPEED 4000
+      #endif
+    #endif
+  #endif
 
   /**
    * Delta radius/rod trimmers
@@ -773,5 +822,27 @@
     #endif
   #endif
 
+  /**
+   * Buzzer/Speaker
+   */
+  #if ENABLED(LCD_USE_I2C_BUZZER)
+    #ifndef LCD_FEEDBACK_FREQUENCY_HZ
+      #define LCD_FEEDBACK_FREQUENCY_HZ 1000
+    #endif
+    #ifndef LCD_FEEDBACK_FREQUENCY_DURATION_MS
+      #define LCD_FEEDBACK_FREQUENCY_DURATION_MS 100
+    #endif
+  #elif PIN_EXISTS(BEEPER)
+    #ifndef LCD_FEEDBACK_FREQUENCY_HZ
+      #define LCD_FEEDBACK_FREQUENCY_HZ 5000
+    #endif
+    #ifndef LCD_FEEDBACK_FREQUENCY_DURATION_MS
+      #define LCD_FEEDBACK_FREQUENCY_DURATION_MS 2
+    #endif
+  #else
+    #ifndef LCD_FEEDBACK_FREQUENCY_DURATION_MS
+      #define LCD_FEEDBACK_FREQUENCY_DURATION_MS 2
+    #endif
+  #endif
 #endif //CONFIGURATION_LCD
 #endif //CONDITIONALS_H
