@@ -97,8 +97,24 @@
 // build by the user have been successfully uploaded into firmware.
 #define STRING_CONFIG_H_AUTHOR "(bq Witbox)" // Who made the changes.
 #define SHOW_BOOTSCREEN
-#define STRING_SPLASH_LINE1 SHORT_BUILD_VERSION // will be shown during bootup in line 1
-//#define STRING_SPLASH_LINE2 STRING_DISTRIBUTION_DATE // will be shown during bootup in line 2
+#define STRING_SPLASH_LINE1 SHORT_BUILD_VERSION // will be shown during boot in line 1
+#define STRING_SPLASH_LINE2 WEBSITE_URL         // will be shown during boot in line 2
+
+//
+// *** VENDORS PLEASE READ *****************************************************
+//
+// Marlin now allow you to have a vendor boot image to be displayed on machine
+// start. When SHOW_CUSTOM_BOOTSCREEN is defined Marlin will first show your
+// custom boot image and them the default Marlin boot image is shown.
+//
+// We suggest for you to take advantage of this new feature and keep the Marlin
+// boot image unmodified. For an example have a look at the bq Hephestos 2
+// example configuration folder.
+//
+//#define SHOW_CUSTOM_BOOTSCREEN
+#if ENABLED(SHOW_BOOTSCREEN) && ENABLED(SHOW_CUSTOM_BOOTSCREEN)
+  #include "_Bootscreen.h"
+#endif
 
 // @section machine
 
@@ -139,6 +155,30 @@
 // For Cyclops or any "multi-extruder" that shares a single nozzle.
 //#define SINGLENOZZLE
 
+// A dual extruder that uses a single stepper motor
+// Don't forget to set SSDE_SERVO_ANGLES and HOTEND_OFFSET_X/Y/Z
+//#define SWITCHING_EXTRUDER
+#if ENABLED(SWITCHING_EXTRUDER)
+  #define SWITCHING_EXTRUDER_SERVO_NR 0
+  #define SWITCHING_EXTRUDER_SERVO_ANGLES { 0, 90 } // Angles for E0, E1
+  //#define HOTEND_OFFSET_Z {0.0, 0.0}
+#endif
+
+/**
+ * "Mixing Extruder"
+ *   - Adds a new code, M165, to set the current mix factors.
+ *   - Extends the stepping routines to move multiple steppers in proportion to the mix.
+ *   - Optional support for Repetier Host M163, M164, and virtual extruder.
+ *   - This implementation supports only a single extruder.
+ *   - Enable DIRECT_MIXING_IN_G1 for Pia Taubert's reference implementation
+ */
+//#define MIXING_EXTRUDER
+#if ENABLED(MIXING_EXTRUDER)
+  #define MIXING_STEPPERS 2        // Number of steppers in your mixing extruder
+  #define MIXING_VIRTUAL_TOOLS 16  // Use the Virtual Tool method with M163 and M164
+  //#define DIRECT_MIXING_IN_G1    // Allow ABCDHI mix factors in G1 movement commands
+#endif
+
 // Offset of the extruders (uncomment if using more than one and relying on firmware to position when changing).
 // The offset has to be X=0, Y=0 for the extruder 0 hotend (default extruder).
 // For the other hotends it is their distance from the extruder 0 hotend.
@@ -149,7 +189,6 @@
 // 1 = ATX
 // 2 = X-Box 360 203Watts (the blue wire connected to PS_ON and the red wire to VCC)
 // :{1:'ATX',2:'X-Box 360'}
-
 #define POWER_SUPPLY 1
 
 // Define this to have the electronics keep the power supply off on startup. If you don't know what this is leave it.
@@ -184,6 +223,7 @@
 // 13 is 100k Hisens 3950  1% up to 300°C for hotend "Simple ONE " & "Hotend "All In ONE"
 // 20 is the PT100 circuit found in the Ultimainboard V2.x
 // 60 is 100k Maker's Tool Works Kapton Bed Thermistor beta=3950
+// 66 is 4.7M High Temperature thermistor from Dyze Design
 // 70 is the 100K thermistor found in the bq Hephestos 2
 //
 //    1k ohm pullup tables - This is not normal, you would have to have changed out your 4.7k for 1k
@@ -200,7 +240,7 @@
 //     Use it for Testing or Development purposes. NEVER for production machine.
 //#define DUMMY_THERMISTOR_998_VALUE 25
 //#define DUMMY_THERMISTOR_999_VALUE 100
-// :{ '0': "Not used", '4': "10k !! do not use for a hotend. Bad resolution at high temp. !!", '1': "100k / 4.7k - EPCOS", '51': "100k / 1k - EPCOS", '6': "100k / 4.7k EPCOS - Not as accurate as Table 1", '5': "100K / 4.7k - ATC Semitec 104GT-2 (Used in ParCan & J-Head)", '7': "100k / 4.7k Honeywell 135-104LAG-J01", '71': "100k / 4.7k Honeywell 135-104LAF-J01", '8': "100k / 4.7k 0603 SMD Vishay NTCS0603E3104FXT", '9': "100k / 4.7k GE Sensing AL03006-58.2K-97-G1", '10': "100k / 4.7k RS 198-961", '11': "100k / 4.7k beta 3950 1%", '12': "100k / 4.7k 0603 SMD Vishay NTCS0603E3104FXT (calibrated for Makibox hot bed)", '13': "100k Hisens 3950  1% up to 300°C for hotend 'Simple ONE ' & hotend 'All In ONE'", '60': "100k Maker's Tool Works Kapton Bed Thermistor beta=3950", '55': "100k / 1k - ATC Semitec 104GT-2 (Used in ParCan & J-Head)", '2': "200k / 4.7k - ATC Semitec 204GT-2", '52': "200k / 1k - ATC Semitec 204GT-2", '-3': "Thermocouple + MAX31855 (only for sensor 0)", '-2': "Thermocouple + MAX6675 (only for sensor 0)", '-1': "Thermocouple + AD595", '3': "Mendel-parts / 4.7k", '1047': "Pt1000 / 4.7k", '1010': "Pt1000 / 1k (non standard)", '20': "PT100 (Ultimainboard V2.x)", '147': "Pt100 / 4.7k", '110': "Pt100 / 1k (non-standard)", '998': "Dummy 1", '999': "Dummy 2" }
+// :{ '0': "Not used",'1':"100k / 4.7k - EPCOS",'2':"200k / 4.7k - ATC Semitec 204GT-2",'3':"Mendel-parts / 4.7k",'4':"10k !! do not use for a hotend. Bad resolution at high temp. !!",'5':"100K / 4.7k - ATC Semitec 104GT-2 (Used in ParCan & J-Head)",'6':"100k / 4.7k EPCOS - Not as accurate as Table 1",'7':"100k / 4.7k Honeywell 135-104LAG-J01",'8':"100k / 4.7k 0603 SMD Vishay NTCS0603E3104FXT",'9':"100k / 4.7k GE Sensing AL03006-58.2K-97-G1",'10':"100k / 4.7k RS 198-961",'11':"100k / 4.7k beta 3950 1%",'12':"100k / 4.7k 0603 SMD Vishay NTCS0603E3104FXT (calibrated for Makibox hot bed)",'13':"100k Hisens 3950  1% up to 300°C for hotend 'Simple ONE ' & hotend 'All In ONE'",'20':"PT100 (Ultimainboard V2.x)",'51':"100k / 1k - EPCOS",'52':"200k / 1k - ATC Semitec 204GT-2",'55':"100k / 1k - ATC Semitec 104GT-2 (Used in ParCan & J-Head)",'60':"100k Maker's Tool Works Kapton Bed Thermistor beta=3950",'66':"Dyze Design 4.7M High Temperature thermistor",'70':"the 100K thermistor found in the bq Hephestos 2",'71':"100k / 4.7k Honeywell 135-104LAF-J01",'147':"Pt100 / 4.7k",'1047':"Pt1000 / 4.7k",'110':"Pt100 / 1k (non-standard)",'1010':"Pt1000 / 1k (non standard)",'-3':"Thermocouple + MAX31855 (only for sensor 0)",'-2':"Thermocouple + MAX6675 (only for sensor 0)",'-1':"Thermocouple + AD595",'998':"Dummy 1",'999':"Dummy 2" }
 #define TEMP_SENSOR_0 1
 #define TEMP_SENSOR_1 0
 #define TEMP_SENSOR_2 0
@@ -389,13 +429,13 @@
 #endif
 
 // Mechanical endstop with COM to ground and NC to Signal uses "false" here (most common setup).
-const bool X_MIN_ENDSTOP_INVERTING = true; // set to true to invert the logic of the endstop.
-const bool Y_MIN_ENDSTOP_INVERTING = true; // set to true to invert the logic of the endstop.
-const bool Z_MIN_ENDSTOP_INVERTING = true; // set to true to invert the logic of the endstop.
-const bool X_MAX_ENDSTOP_INVERTING = true; // set to true to invert the logic of the endstop.
-const bool Y_MAX_ENDSTOP_INVERTING = true; // set to true to invert the logic of the endstop.
-const bool Z_MAX_ENDSTOP_INVERTING = true; // set to true to invert the logic of the endstop.
-const bool Z_MIN_PROBE_ENDSTOP_INVERTING = true; // set to true to invert the logic of the endstop.
+#define X_MIN_ENDSTOP_INVERTING true  // set to true to invert the logic of the endstop.
+#define Y_MIN_ENDSTOP_INVERTING true  // set to true to invert the logic of the endstop.
+#define Z_MIN_ENDSTOP_INVERTING true  // set to true to invert the logic of the endstop.
+#define X_MAX_ENDSTOP_INVERTING true  // set to true to invert the logic of the endstop.
+#define Y_MAX_ENDSTOP_INVERTING true  // set to true to invert the logic of the endstop.
+#define Z_MAX_ENDSTOP_INVERTING true  // set to true to invert the logic of the endstop.
+#define Z_MIN_PROBE_ENDSTOP_INVERTING true  // set to true to invert the logic of the endstop.
 
 //===========================================================================
 //============================= Z Probe Options =============================
@@ -416,6 +456,9 @@ const bool Z_MIN_PROBE_ENDSTOP_INVERTING = true; // set to true to invert the lo
 // An inductive probe must be deactivated to go below
 // its trigger-point if hardware endstops are active.
 //#define FIX_MOUNTED_PROBE
+
+// The BLTouch probe emulates a servo probe.
+//#define BLTOUCH
 
 // Z Servo Probe, such as an endstop switch on a rotating arm.
 //#define Z_ENDSTOP_SERVO_NR 0
@@ -448,6 +491,10 @@ const bool Z_MIN_PROBE_ENDSTOP_INVERTING = true; // set to true to invert the lo
 
 // X and Y axis travel speed (mm/m) between probes
 #define XY_PROBE_SPEED 8000
+// Speed for the first approach when probing
+#define Z_PROBE_SPEED_FAST HOMING_FEEDRATE_Z
+// Speed for the second approach when probing
+#define Z_PROBE_SPEED_SLOW (Z_PROBE_SPEED_FAST / 2)
 
 //
 // Allen Key Probe is defined in the Delta example configurations.
@@ -501,12 +548,9 @@ const bool Z_MIN_PROBE_ENDSTOP_INVERTING = true; // set to true to invert the lo
 //#define Z_MIN_PROBE_REPEATABILITY_TEST
 
 //
-// Probe Raise options provide clearance for the probe to deploy and stow.
+// Probe Raise options provide clearance for the probe to deploy, stow, and travel.
 //
-// For G28 these apply when the probe deploys and stows.
-// For G29 these apply before and after the full procedure.
-#define Z_RAISE_BEFORE_PROBING 15   // Raise before probe deploy (e.g., the first probe).
-#define Z_RAISE_AFTER_PROBING 15    // Raise before probe stow (e.g., the last probe).
+#define Z_RAISE_PROBE_DEPLOY_STOW 15 // Raise to make room for the probe to deploy / stow
 #define Z_RAISE_BETWEEN_PROBINGS 5  // Raise between probing points.
 
 //
@@ -551,6 +595,7 @@ const bool Z_MIN_PROBE_ENDSTOP_INVERTING = true; // set to true to invert the lo
 #define INVERT_E3_DIR false
 
 // @section homing
+
 //#define MIN_Z_HEIGHT_FOR_HOMING 4 // (in mm) Minimal z height before homing (G28) for Z clearance above the bed, clamps, ...
                                     // Be sure you have this distance over your Z_MAX_POS in case.
 
@@ -616,6 +661,10 @@ const bool Z_MIN_PROBE_ENDSTOP_INVERTING = true; // set to true to invert the lo
 // @section bedlevel
 
 //#define AUTO_BED_LEVELING_FEATURE // Delete the comment to enable (remove // at the start of the line)
+
+// Enable this feature to get detailed logging of G28, G29, M48, etc.
+// Logging is off by default. Enable this logging feature with 'M111 S32'.
+// NOTE: Requires a huge amount of PROGMEM.
 //#define DEBUG_LEVELING_FEATURE
 
 #if ENABLED(AUTO_BED_LEVELING_FEATURE)
@@ -700,14 +749,14 @@ const bool Z_MIN_PROBE_ENDSTOP_INVERTING = true; // set to true to invert the lo
   #define Z_SAFE_HOMING_Y_POINT ((Y_MIN_POS + Y_MAX_POS) / 2)    // Y point for Z homing when homing all axis (G28).
 #endif
 
+// Homing speeds (mm/m)
+#define HOMING_FEEDRATE_XY (120*60)
+#define HOMING_FEEDRATE_Z  432
 
+//
+// MOVEMENT SETTINGS
 // @section motion
-
-/**
- * MOVEMENT SETTINGS
- */
-
-#define HOMING_FEEDRATE {120*60, 120*60, 7.2*60, 0}  // set the homing speeds (mm/min)
+//
 
 // default settings
 
@@ -773,19 +822,94 @@ const bool Z_MIN_PROBE_ENDSTOP_INVERTING = true; // set to true to invert the lo
 // @section temperature
 
 // Preheat Constants
-#define PLA_PREHEAT_HOTEND_TEMP 200
-#define PLA_PREHEAT_HPB_TEMP 0
-#define PLA_PREHEAT_FAN_SPEED 255   // Insert Value between 0 and 255
+#define PREHEAT_1_TEMP_HOTEND 200
+#define PREHEAT_1_TEMP_BED      0
+#define PREHEAT_1_FAN_SPEED   255 // Value from 0 to 255
 
-#define ABS_PREHEAT_HOTEND_TEMP 220
-#define ABS_PREHEAT_HPB_TEMP 100
-#define ABS_PREHEAT_FAN_SPEED 255   // Insert Value between 0 and 255
+#define PREHEAT_2_TEMP_HOTEND 220
+#define PREHEAT_2_TEMP_BED    100
+#define PREHEAT_2_FAN_SPEED   255 // Value from 0 to 255
+
+//
+// Nozzle Park -- EXPERIMENTAL
+//
+// When enabled allows the user to define a special XYZ position, inside the
+// machine's topology, to park the nozzle when idle or when receiving the G27
+// command.
+//
+// The "P" paramenter controls what is the action applied to the Z axis:
+//    P0: (Default) If current Z-pos is lower than Z-park then the nozzle will
+//        be raised to reach Z-park height.
+//
+//    P1: No matter the current Z-pos, the nozzle will be raised/lowered to
+//        reach Z-park height.
+//
+//    P2: The nozzle height will be raised by Z-park amount but never going over
+//        the machine's limit of Z_MAX_POS.
+//
+//#define NOZZLE_PARK_FEATURE
+
+#if ENABLED(NOZZLE_PARK_FEATURE)
+  // Specify a park position as { X, Y, Z }
+  #define NOZZLE_PARK_POINT { (X_MIN_POS + 10), (Y_MAX_POS - 10), 20 }
+#endif
+
+//
+// Clean Nozzle Feature -- EXPERIMENTAL
+//
+// When enabled allows the user to send G12 to start the nozzle cleaning
+// process, the G-Code accepts two parameters:
+//   "P" for pattern selection
+//   "S" for defining the number of strokes/repetitions
+//
+// Available list of patterns:
+//   P0: This is the default pattern, this process requires a sponge type
+//       material at a fixed bed location, the cleaning process is based on
+//       "strokes" i.e. back-and-forth movements between the starting and end
+//       points.
+//
+//   P1: This starts a zig-zag pattern between (X0, Y0) and (X1, Y1), "T"
+//       defines the number of zig-zag triangles to be done. "S" defines the
+//       number of strokes aka one back-and-forth movement. As an example
+//       sending "G12 P1 S1 T3" will execute:
+//
+//          --
+//         |  (X0, Y1) |     /\        /\        /\     | (X1, Y1)
+//         |           |    /  \      /  \      /  \    |
+//       A |           |   /    \    /    \    /    \   |
+//         |           |  /      \  /      \  /      \  |
+//         |  (X0, Y0) | /        \/        \/        \ | (X1, Y0)
+//          --         +--------------------------------+
+//                       |________|_________|_________|
+//                           T1        T2        T3
+//
+// Caveats: End point Z should use the same value as Start point Z.
+//
+// Attention: This is an EXPERIMENTAL feature, in the future the G-code arguments
+// may change to add new functionality like different wipe patterns.
+//
+//#define NOZZLE_CLEAN_FEATURE
+
+#if ENABLED(NOZZLE_CLEAN_FEATURE)
+  // Number of pattern repetitions
+  #define NOZZLE_CLEAN_STROKES  12
+
+  // Specify positions as { X, Y, Z }
+  #define NOZZLE_CLEAN_START_POINT { 30, 30, (Z_MIN_POS + 1)}
+  #define NOZZLE_CLEAN_END_POINT   {100, 60, (Z_MIN_POS + 1)}
+
+  // Moves the nozzle to the initial position
+  #define NOZZLE_CLEAN_GOBACK
+#endif
 
 //
 // Print job timer
 //
 // Enable this option to automatically start and stop the
-// print job timer when M104 and M109 commands are received.
+// print job timer when M104/M109/M190 commands are received.
+// M104 (extruder without wait) - high temp = none, low temp = stop timer
+// M109 (extruder with wait) - high temp = start timer, low temp = stop timer
+// M190 (bed with wait) - high temp = start timer, low temp = none
 //
 // In all cases the timer can be started and stopped using
 // the following commands:
@@ -818,10 +942,10 @@ const bool Z_MIN_PROBE_ENDSTOP_INVERTING = true; // set to true to invert the lo
 //
 // Here you may choose the language used by Marlin on the LCD menus, the following
 // list of languages are available:
-//    en, an, bg, ca, cn, cz, de, es, eu, fi, fr, gl, hr, it, kana,
-//    kana_utf8, nl, pl, pt, pt_utf8, pt-br, pt-br_utf8, ru, test
+//    en, an, bg, ca, cn, cz, de, el, el-gr, es, eu, fi, fr, gl, hr, it,
+//    kana, kana_utf8, nl, pl, pt, pt_utf8, pt-br, pt-br_utf8, ru, test
 //
-// :{'en':'English','an':'Aragonese','bg':'Bulgarian','ca':'Catalan','cn':'Chinese','cz':'Czech','de':'German','es':'Spanish','eu':'Basque-Euskera','fi':'Finnish','fr':'French','gl':'Galician','hr':'Croatian','it':'Italian','kana':'Japanese','kana_utf8':'Japanese (UTF8)','nl':'Dutch','pl':'Polish','pt':'Portuguese','pt-br':'Portuguese (Brazilian)','pt-br_utf8':'Portuguese (Brazilian UTF8)','pt_utf8':'Portuguese (UTF8)','ru':'Russian','test':'TEST'}
+// :{'en':'English','an':'Aragonese','bg':'Bulgarian','ca':'Catalan','cn':'Chinese','cz':'Czech','de':'German','el':'Greek','el-gr':'Greek (Greece)','es':'Spanish','eu':'Basque-Euskera','fi':'Finnish','fr':'French','gl':'Galician','hr':'Croatian','it':'Italian','kana':'Japanese','kana_utf8':'Japanese (UTF8)','nl':'Dutch','pl':'Polish','pt':'Portuguese','pt-br':'Portuguese (Brazilian)','pt-br_utf8':'Portuguese (Brazilian UTF8)','pt_utf8':'Portuguese (UTF8)','ru':'Russian','test':'TEST'}
 //
 //#define LCD_LANGUAGE en
 
@@ -1036,7 +1160,7 @@ const bool Z_MIN_PROBE_ENDSTOP_INVERTING = true; // set to true to invert the lo
 // is pressed, a value of 10.0 means 10mm per click.
 //
 //#define REPRAPWORLD_KEYPAD
-//#define REPRAPWORLD_KEYPAD_MOVE_STEP 10.0
+//#define REPRAPWORLD_KEYPAD_MOVE_STEP 1.0
 
 //
 // RigidBot Panel V1.0
@@ -1133,7 +1257,7 @@ const bool Z_MIN_PROBE_ENDSTOP_INVERTING = true; // set to true to invert the lo
 // at zero value, there are 128 effective control positions.
 #define SOFT_PWM_SCALE 0
 
-// Temperature status LEDs that display the hotend and bet temperature.
+// Temperature status LEDs that display the hotend and bed temperature.
 // If all hotends and bed temperature and temperature setpoint are < 54C then the BLUE led is on.
 // Otherwise the RED led is on. There is 1C hysteresis.
 //#define TEMP_STAT_LEDS

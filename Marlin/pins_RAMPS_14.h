@@ -48,6 +48,10 @@
   #error "Oops!  Make sure you have 'Arduino Mega' selected from the 'Tools -> Boards' menu."
 #endif
 
+#ifndef BOARD_NAME
+  #define BOARD_NAME "RAMPS 1.4"
+#endif
+
 #define LARGE_FLASH true
 
 #ifdef IS_RAMPS_13
@@ -137,22 +141,32 @@
 
 #if ENABLED(ULTRA_LCD)
 
-  #if ENABLED(NEWPANEL)
-    #if ENABLED(PANEL_ONE)
-      #define LCD_PINS_RS 40
-      #define LCD_PINS_ENABLE 42
-      #define LCD_PINS_D4 65
-      #define LCD_PINS_D5 66
-      #define LCD_PINS_D6 44
-      #define LCD_PINS_D7 64
-    #else
-      #define LCD_PINS_RS 16
-      #define LCD_PINS_ENABLE 17
-      #define LCD_PINS_D4 23
-      #define LCD_PINS_D5 25
-      #define LCD_PINS_D6 27
-      #define LCD_PINS_D7 29
+  #if ENABLED(NEWPANEL) && ENABLED(PANEL_ONE)
+    #define LCD_PINS_RS 40
+    #define LCD_PINS_ENABLE 42
+    #define LCD_PINS_D4 65
+    #define LCD_PINS_D5 66
+    #define LCD_PINS_D6 44
+    #define LCD_PINS_D7 64
+  #else
+    #define LCD_PINS_RS 16
+    #define LCD_PINS_ENABLE 17
+    #define LCD_PINS_D4 23
+    #define LCD_PINS_D5 25
+    #define LCD_PINS_D6 27
+    #define LCD_PINS_D7 29
+    #if DISABLED(NEWPANEL)
+      #define BEEPER_PIN 33
+      // Buttons are attached to a shift register
+      // Not wired yet
+      //#define SHIFT_CLK 38
+      //#define SHIFT_LD 42
+      //#define SHIFT_OUT 40
+      //#define SHIFT_EN 17
     #endif
+  #endif
+
+  #if ENABLED(NEWPANEL)
 
     #if ENABLED(REPRAP_DISCOUNT_SMART_CONTROLLER)
       #define BEEPER_PIN 37
@@ -183,6 +197,27 @@
       #define BTN_ENC -1
       #define LCD_SDSS 53
       #define SD_DETECT_PIN 49
+    #elif ENABLED(VIKI2) || ENABLED(miniVIKI)
+      #define BEEPER_PIN       33
+
+      // Pins for DOGM SPI LCD Support
+      #define DOGLCD_A0        44
+      #define DOGLCD_CS        45
+      #define LCD_SCREEN_ROT_180
+
+      #define BTN_EN1          22
+      #define BTN_EN2           7
+      #define BTN_ENC          39
+
+      #define SDSS             53
+      #define SD_DETECT_PIN    -1  // Pin 49 for display sd interface, 72 for easy adapter board
+
+      #define KILL_PIN         31
+
+      #if ENABLED(TEMP_STAT_LEDS)
+        #define STAT_LED_RED   32
+        #define STAT_LED_BLUE  35
+      #endif
     #elif ENABLED(ELB_FULL_GRAPHIC_CONTROLLER)
       #define BTN_EN1 35  // reverse if the encoder turns the wrong way.
       #define BTN_EN2 37
@@ -247,26 +282,7 @@
       #endif
 
     #endif
-  #else // !NEWPANEL (Old-style panel with shift register)
-
-    // No Beeper added
-    #define BEEPER_PIN 33
-
-    // Buttons are attached to a shift register
-    // Not wired yet
-    //#define SHIFT_CLK 38
-    //#define SHIFT_LD 42
-    //#define SHIFT_OUT 40
-    //#define SHIFT_EN 17
-
-    #define LCD_PINS_RS 16
-    #define LCD_PINS_ENABLE 17
-    #define LCD_PINS_D4 23
-    #define LCD_PINS_D5 25
-    #define LCD_PINS_D6 27
-    #define LCD_PINS_D7 29
-
-  #endif // !NEWPANEL
+  #endif // NEWPANEL
 
 #endif // ULTRA_LCD
 

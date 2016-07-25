@@ -30,7 +30,6 @@
 #ifndef LANGUAGE_ES_H
 #define LANGUAGE_ES_H
 
-#define MAPPER_NON
 // Define SIMULATE_ROMFONT to see what is seen on the character based display defined in Configuration.h
 //#define SIMULATE_ROMFONT
 #define DISPLAY_CHARSET_ISO10646_1
@@ -53,16 +52,16 @@
 #define MSG_SET_HOME_OFFSETS                "Ajustar desfases"
 #define MSG_HOME_OFFSETS_APPLIED            "Desfase aplicado"
 #define MSG_SET_ORIGIN                      "Establecer origen"
-#define MSG_PREHEAT_PLA                     "Precalentar PLA"
-#define MSG_PREHEAT_PLA_N                   MSG_PREHEAT_PLA " "
-#define MSG_PREHEAT_PLA_ALL                 MSG_PREHEAT_PLA "Todo"
-#define MSG_PREHEAT_PLA_BEDONLY             MSG_PREHEAT_PLA"Plataforma"
-#define MSG_PREHEAT_PLA_SETTINGS            MSG_PREHEAT_PLA "Config"
-#define MSG_PREHEAT_ABS                     "Precalentar ABS"
-#define MSG_PREHEAT_ABS_N                   MSG_PREHEAT_ABS " "
-#define MSG_PREHEAT_ABS_ALL                 MSG_PREHEAT_ABS "Todo"
-#define MSG_PREHEAT_ABS_BEDONLY             MSG_PREHEAT_ABS "Plataforma"
-#define MSG_PREHEAT_ABS_SETTINGS            MSG_PREHEAT_ABS "Config"
+#define MSG_PREHEAT_1                       "Precalentar PLA"
+#define MSG_PREHEAT_1_N                     MSG_PREHEAT_1 " "
+#define MSG_PREHEAT_1_ALL                   MSG_PREHEAT_1 "Todo"
+#define MSG_PREHEAT_1_BEDONLY               MSG_PREHEAT_1"Plataforma"
+#define MSG_PREHEAT_1_SETTINGS              MSG_PREHEAT_1 "Config"
+#define MSG_PREHEAT_2                       "Precalentar ABS"
+#define MSG_PREHEAT_2_N                     MSG_PREHEAT_2 " "
+#define MSG_PREHEAT_2_ALL                   MSG_PREHEAT_2 "Todo"
+#define MSG_PREHEAT_2_BEDONLY               MSG_PREHEAT_2 "Plataforma"
+#define MSG_PREHEAT_2_SETTINGS              MSG_PREHEAT_2 "Config"
 #define MSG_H1                              "1"
 #define MSG_H2                              "2"
 #define MSG_H3                              "3"
@@ -169,8 +168,8 @@
 #define MSG_INIT_SDCARD                     "Iniciando tarjeta"
 #define MSG_CNG_SDCARD                      "Cambiar tarjeta"
 #define MSG_ZPROBE_OUT                      "Sonda Z fuera"
-#define MSG_YX_UNHOMED                      "Reiniciar X/Y y Z"
-#define MSG_XYZ_UNHOMED                     "Reiniciar XYZ"
+#define MSG_HOME                            "Home"  // Used as MSG_HOME " " MSG_X MSG_Y MSG_Z " " MSG_FIRST
+#define MSG_FIRST                           "first"
 #define MSG_ZPROBE_ZOFFSET                  "Desfase Z"
 #define MSG_BABYSTEP_X                      "Micropaso X"
 #define MSG_BABYSTEP_Y                      "Micropaso Y"
@@ -183,8 +182,6 @@
 #define MSG_ERR_MINTEMP                     "Error: Temp Minima"
 #define MSG_ERR_MAXTEMP_BED                 "Error: Temp Max Plataforma"
 #define MSG_ERR_MINTEMP_BED                 "Error: Temp Min Plataforma"
-#define MSG_END_HOUR                        "horas"
-#define MSG_END_MINUTE                      "minutos"
 #define MSG_HEATING                         "Calentando..."
 #define MSG_HEATING_COMPLETE                "Calentamiento Completo"
 #define MSG_BED_HEATING                     "Calentando plataforma ..."

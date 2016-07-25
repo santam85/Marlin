@@ -55,7 +55,7 @@
     #define LCD_CONTRAST_MIN 60
     #define LCD_CONTRAST_MAX 140
   #endif
-  
+
   #if ENABLED(MAKRPANEL) || ENABLED(MINIPANEL)
     #define DOGLCD
     #define ULTIPANEL
@@ -118,12 +118,7 @@
     #define REPRAP_DISCOUNT_SMART_CONTROLLER
   #endif
 
-  #if ENABLED(ULTIMAKERCONTROLLER) || ENABLED(REPRAP_DISCOUNT_SMART_CONTROLLER) || ENABLED(G3D_PANEL) || ENABLED(RIGIDBOT_PANEL)
-    #define ULTIPANEL
-    #define NEWPANEL
-  #endif
-
-  #if ENABLED(REPRAPWORLD_KEYPAD)
+  #if ENABLED(ULTIMAKERCONTROLLER) || ENABLED(REPRAP_DISCOUNT_SMART_CONTROLLER) || ENABLED(G3D_PANEL) || ENABLED(RIGIDBOT_PANEL) || ENABLED(REPRAPWORLD_KEYPAD)
     #define ULTIPANEL
     #define NEWPANEL
   #endif
@@ -255,6 +250,7 @@
 
     #define HAS_LCD_CONTRAST ( \
         ENABLED(MAKRPANEL) \
+     || ENABLED(CARTESIO_UI) \
      || ENABLED(VIKI2) \
      || ENABLED(miniVIKI) \
      || ENABLED(ELB_FULL_GRAPHIC_CONTROLLER) \
@@ -273,6 +269,10 @@
     #endif
   #endif
 
+  #ifndef BOOTSCREEN_TIMEOUT
+    #define BOOTSCREEN_TIMEOUT 2500
+  #endif
+
 #else // CONFIGURATION_LCD
 
   #define CONDITIONALS_H
@@ -281,6 +281,12 @@
 
   #ifndef USBCON
     #define HardwareSerial_h // trick to disable the standard HWserial
+  #endif
+
+  #if ENABLED(EMERGENCY_PARSER)
+    #define EMERGENCY_PARSER_CAPABILITIES " EMERGENCY_CODES:M108,M112,M410"
+  #else
+    #define EMERGENCY_PARSER_CAPABILITIES ""
   #endif
 
   #include "Arduino.h"
@@ -363,17 +369,30 @@
   #endif //!MANUAL_HOME_POSITIONS
 
   /**
+   * The BLTouch Probe emulates a servo probe
+   */
+  #if ENABLED(BLTOUCH)
+    #undef Z_ENDSTOP_SERVO_NR
+    #undef Z_SERVO_ANGLES
+    #define Z_ENDSTOP_SERVO_NR 0
+    #define Z_SERVO_ANGLES {10,90} // For BLTouch 10=deploy, 90=retract
+    #undef DEACTIVATE_SERVOS_AFTER_MOVE
+    #if ENABLED(Z_MIN_PROBE_USES_Z_MIN_ENDSTOP_PIN)
+      #undef Z_MIN_ENDSTOP_INVERTING
+      #define Z_MIN_ENDSTOP_INVERTING false
+    #endif
+  #endif
+
+  /**
    * Auto Bed Leveling and Z Probe Repeatability Test
    */
   #define HAS_PROBING_PROCEDURE (ENABLED(AUTO_BED_LEVELING_FEATURE) || ENABLED(Z_MIN_PROBE_REPEATABILITY_TEST))
 
-  #if HAS_PROBING_PROCEDURE
-    // Boundaries for probing based on set limits
-    #define MIN_PROBE_X (max(X_MIN_POS, X_MIN_POS + X_PROBE_OFFSET_FROM_EXTRUDER))
-    #define MAX_PROBE_X (min(X_MAX_POS, X_MAX_POS + X_PROBE_OFFSET_FROM_EXTRUDER))
-    #define MIN_PROBE_Y (max(Y_MIN_POS, Y_MIN_POS + Y_PROBE_OFFSET_FROM_EXTRUDER))
-    #define MAX_PROBE_Y (min(Y_MAX_POS, Y_MAX_POS + Y_PROBE_OFFSET_FROM_EXTRUDER))
-  #endif
+  // Boundaries for probing based on set limits
+  #define MIN_PROBE_X (max(X_MIN_POS, X_MIN_POS + X_PROBE_OFFSET_FROM_EXTRUDER))
+  #define MAX_PROBE_X (min(X_MAX_POS, X_MAX_POS + X_PROBE_OFFSET_FROM_EXTRUDER))
+  #define MIN_PROBE_Y (max(Y_MIN_POS, Y_MIN_POS + Y_PROBE_OFFSET_FROM_EXTRUDER))
+  #define MAX_PROBE_Y (min(Y_MAX_POS, Y_MAX_POS + Y_PROBE_OFFSET_FROM_EXTRUDER))
 
   #define HAS_Z_SERVO_ENDSTOP (defined(Z_ENDSTOP_SERVO_NR) && Z_ENDSTOP_SERVO_NR >= 0)
 
@@ -534,49 +553,65 @@
   #define HAS_PID_FOR_BOTH (ENABLED(PIDTEMP) && ENABLED(PIDTEMPBED))
 
   /**
-   * SINGLENOZZLE needs to differentiate EXTRUDERS and HOTENDS
-   * And all "extruders" are in the same place.
+   * Extruders have some combination of stepper motors and hotends
+   * so we separate these concepts into the defines:
+   *
+   *  EXTRUDERS    - Number of Selectable Tools
+   *  HOTENDS      - Number of hotends, whether connected or separate
+   *  E_STEPPERS   - Number of actual E stepper motors
+   *  TOOL_E_INDEX - Index to use when getting/setting the tool state
+   *  
    */
-  #if ENABLED(SINGLENOZZLE)
-    #define HOTENDS 1
+  #if ENABLED(SINGLENOZZLE)             // One hotend, multi-extruder
+    #define HOTENDS      1
+    #define E_STEPPERS   EXTRUDERS
+    #define TOOL_E_INDEX current_block->active_extruder
     #undef TEMP_SENSOR_1_AS_REDUNDANT
     #undef HOTEND_OFFSET_X
     #undef HOTEND_OFFSET_Y
-    #define HOTEND_OFFSET_X { 0 }
-    #define HOTEND_OFFSET_Y { 0 }
-  #else
-    #define HOTENDS EXTRUDERS
+  #elif ENABLED(SWITCHING_EXTRUDER)     // One E stepper, unified E axis, two hotends
+    #define HOTENDS      EXTRUDERS
+    #define E_STEPPERS   1
+    #define TOOL_E_INDEX 0
+    #ifndef HOTEND_OFFSET_Z
+      #define HOTEND_OFFSET_Z { 0 }
+    #endif
+  #elif ENABLED(MIXING_EXTRUDER)        // Multi-stepper, unified E axis, one hotend
+    #define HOTENDS      1
+    #define E_STEPPERS   MIXING_STEPPERS
+    #define TOOL_E_INDEX 0
+  #else                                 // One stepper, E axis, and hotend per tool
+    #define HOTENDS      EXTRUDERS
+    #define E_STEPPERS   EXTRUDERS
+    #define TOOL_E_INDEX current_block->active_extruder
+  #endif
+
+  /**
+   * Default hotend offsets, if not defined
+   */
+  #if HOTENDS > 1
+    #ifndef HOTEND_OFFSET_X
+      #define HOTEND_OFFSET_X { 0 } // X offsets for each extruder
+    #endif
+    #ifndef HOTEND_OFFSET_Y
+      #define HOTEND_OFFSET_Y { 0 } // Y offsets for each extruder
+    #endif
+    #if !defined(HOTEND_OFFSET_Z) && (ENABLED(DUAL_X_CARRIAGE) || ENABLED(SWITCHING_EXTRUDER))
+      #define HOTEND_OFFSET_Z { 0 }
+    #endif
   #endif
 
   /**
    * ARRAY_BY_EXTRUDERS based on EXTRUDERS
    */
-  #if EXTRUDERS > 3
-    #define ARRAY_BY_EXTRUDERS(v1, v2, v3, v4) { v1, v2, v3, v4 }
-  #elif EXTRUDERS > 2
-    #define ARRAY_BY_EXTRUDERS(v1, v2, v3, v4) { v1, v2, v3 }
-  #elif EXTRUDERS > 1
-    #define ARRAY_BY_EXTRUDERS(v1, v2, v3, v4) { v1, v2 }
-  #else
-    #define ARRAY_BY_EXTRUDERS(v1, v2, v3, v4) { v1 }
-  #endif
-
-  #define ARRAY_BY_EXTRUDERS1(v1) ARRAY_BY_EXTRUDERS(v1, v1, v1, v1)
+  #define ARRAY_BY_EXTRUDERS(args...) ARRAY_N(EXTRUDERS, args)
+  #define ARRAY_BY_EXTRUDERS1(v1) ARRAY_BY_EXTRUDERS(v1, v1, v1, v1, v1, v1)
 
   /**
    * ARRAY_BY_HOTENDS based on HOTENDS
    */
-  #if HOTENDS > 3
-    #define ARRAY_BY_HOTENDS(v1, v2, v3, v4) { v1, v2, v3, v4 }
-  #elif HOTENDS > 2
-    #define ARRAY_BY_HOTENDS(v1, v2, v3, v4) { v1, v2, v3 }
-  #elif HOTENDS > 1
-    #define ARRAY_BY_HOTENDS(v1, v2, v3, v4) { v1, v2 }
-  #else
-    #define ARRAY_BY_HOTENDS(v1, v2, v3, v4) { v1 }
-  #endif
-
-  #define ARRAY_BY_HOTENDS1(v1) ARRAY_BY_HOTENDS(v1, v1, v1, v1)
+  #define ARRAY_BY_HOTENDS(args...) ARRAY_N(HOTENDS, args)
+  #define ARRAY_BY_HOTENDS1(v1) ARRAY_BY_HOTENDS(v1, v1, v1, v1, v1, v1)
 
   /**
    * Z_DUAL_ENDSTOPS endstop reassignment
@@ -588,35 +623,33 @@
     #define _XMAX_ 101
     #define _YMAX_ 201
     #define _ZMAX_ 301
-    const bool Z2_MAX_ENDSTOP_INVERTING =
-      #if Z2_USE_ENDSTOP == _XMAX_
-        X_MAX_ENDSTOP_INVERTING
-        #define Z2_MAX_PIN X_MAX_PIN
-        #undef USE_XMAX_PLUG
-      #elif Z2_USE_ENDSTOP == _YMAX_
-        Y_MAX_ENDSTOP_INVERTING
-        #define Z2_MAX_PIN Y_MAX_PIN
-        #undef USE_YMAX_PLUG
-      #elif Z2_USE_ENDSTOP == _ZMAX_
-        Z_MAX_ENDSTOP_INVERTING
-        #define Z2_MAX_PIN Z_MAX_PIN
-        #undef USE_ZMAX_PLUG
-      #elif Z2_USE_ENDSTOP == _XMIN_
-        X_MIN_ENDSTOP_INVERTING
-        #define Z2_MAX_PIN X_MIN_PIN
-        #undef USE_XMIN_PLUG
-      #elif Z2_USE_ENDSTOP == _YMIN_
-        Y_MIN_ENDSTOP_INVERTING
-        #define Z2_MAX_PIN Y_MIN_PIN
-        #undef USE_YMIN_PLUG
-      #elif Z2_USE_ENDSTOP == _ZMIN_
-        Z_MIN_ENDSTOP_INVERTING
-        #define Z2_MAX_PIN Z_MIN_PIN
-        #undef USE_ZMIN_PLUG
-      #else
-        0
-      #endif
-    ;
+    #if Z2_USE_ENDSTOP == _XMAX_
+      #define Z2_MAX_ENDSTOP_INVERTING X_MAX_ENDSTOP_INVERTING
+      #define Z2_MAX_PIN X_MAX_PIN
+      #undef USE_XMAX_PLUG
+    #elif Z2_USE_ENDSTOP == _YMAX_
+      #define Z2_MAX_ENDSTOP_INVERTING Y_MAX_ENDSTOP_INVERTING
+      #define Z2_MAX_PIN Y_MAX_PIN
+      #undef USE_YMAX_PLUG
+    #elif Z2_USE_ENDSTOP == _ZMAX_
+      #define Z2_MAX_ENDSTOP_INVERTING Z_MAX_ENDSTOP_INVERTING
+      #define Z2_MAX_PIN Z_MAX_PIN
+      #undef USE_ZMAX_PLUG
+    #elif Z2_USE_ENDSTOP == _XMIN_
+      #define Z2_MAX_ENDSTOP_INVERTING X_MIN_ENDSTOP_INVERTING
+      #define Z2_MAX_PIN X_MIN_PIN
+      #undef USE_XMIN_PLUG
+    #elif Z2_USE_ENDSTOP == _YMIN_
+      #define Z2_MAX_ENDSTOP_INVERTING Y_MIN_ENDSTOP_INVERTING
+      #define Z2_MAX_PIN Y_MIN_PIN
+      #undef USE_YMIN_PLUG
+    #elif Z2_USE_ENDSTOP == _ZMIN_
+      #define Z2_MAX_ENDSTOP_INVERTING Z_MIN_ENDSTOP_INVERTING
+      #define Z2_MAX_PIN Z_MIN_PIN
+      #undef USE_ZMIN_PLUG
+    #else
+      #define Z2_MAX_ENDSTOP_INVERTING false
+    #endif
   #endif
 
   /**
@@ -770,6 +803,10 @@
 
   #define HAS_BED_PROBE (PROBE_SELECTED && PROBE_PIN_CONFIGURED)
 
+  #if ENABLED(Z_PROBE_ALLEN_KEY)
+    #define PROBE_IS_TRIGGERED_WHEN_STOWED_TEST
+  #endif
+
   /**
    * Bed Probe dependencies
    */
@@ -790,11 +827,16 @@
       #define Z_PROBE_OFFSET_RANGE_MAX 20
     #endif
     #ifndef XY_PROBE_SPEED
-      #ifdef HOMING_FEEDRATE_XYZ
-        #define XY_PROBE_SPEED HOMING_FEEDRATE_XYZ
+      #ifdef HOMING_FEEDRATE_XY
+        #define XY_PROBE_SPEED HOMING_FEEDRATE_XY
       #else
         #define XY_PROBE_SPEED 4000
       #endif
+    #endif
+    #if Z_RAISE_BETWEEN_PROBINGS > Z_RAISE_PROBE_DEPLOY_STOW
+      #define _Z_RAISE_PROBE_DEPLOY_STOW Z_RAISE_BETWEEN_PROBINGS
+    #else
+      #define _Z_RAISE_PROBE_DEPLOY_STOW Z_RAISE_PROBE_DEPLOY_STOW
     #endif
   #endif
 
@@ -820,6 +862,16 @@
     #ifndef DELTA_DIAGONAL_ROD_TRIM_TOWER_3
       #define DELTA_DIAGONAL_ROD_TRIM_TOWER_3 0.0
     #endif
+    #if ENABLED(AUTO_BED_LEVELING_GRID)
+      #define DELTA_BED_LEVELING_GRID
+    #endif
+  #endif
+
+  /**
+   * When not using other bed leveling...
+   */
+  #if ENABLED(AUTO_BED_LEVELING_FEATURE) && DISABLED(AUTO_BED_LEVELING_GRID) && DISABLED(DELTA_BED_LEVELING_GRID)
+    #define AUTO_BED_LEVELING_3POINT
   #endif
 
   /**
@@ -844,5 +896,20 @@
       #define LCD_FEEDBACK_FREQUENCY_DURATION_MS 2
     #endif
   #endif
+
+  /**
+   * MIN_Z_HEIGHT_FOR_HOMING / Z_RAISE_BETWEEN_PROBINGS
+   */
+  #ifndef MIN_Z_HEIGHT_FOR_HOMING
+    #ifndef Z_RAISE_BETWEEN_PROBINGS
+      #define MIN_Z_HEIGHT_FOR_HOMING 0
+    #else
+      #define MIN_Z_HEIGHT_FOR_HOMING Z_RAISE_BETWEEN_PROBINGS
+    #endif
+  #endif
+  #ifndef Z_RAISE_BETWEEN_PROBINGS
+    #define Z_RAISE_BETWEEN_PROBING MIN_Z_HEIGHT_FOR_HOMING
+  #endif
+
 #endif //CONFIGURATION_LCD
 #endif //CONDITIONALS_H

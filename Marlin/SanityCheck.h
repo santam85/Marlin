@@ -56,42 +56,34 @@
  * Marlin release, version and default string
  */
 #ifndef SHORT_BUILD_VERSION
-  #error "SHORT_BUILD_VERSION Information must be specified"
-#endif
-
-#ifndef DETAILED_BUILD_VERSION
-  #error "BUILD_VERSION Information must be specified"
-#endif
-
-#ifndef STRING_DISTRIBUTION_DATE
-  #error "STRING_DISTRIBUTION_DATE Information must be specified"
-#endif
-
-#ifndef PROTOCOL_VERSION
-  #error "PROTOCOL_VERSION Information must be specified"
-#endif
-
-#ifndef MACHINE_NAME
-  #error "MACHINE_NAME Information must be specified"
-#endif
-
-#ifndef SOURCE_CODE_URL
-  #error "SOURCE_CODE_URL Information must be specified"
-#endif
-
-#ifndef DEFAULT_MACHINE_UUID
-  #error "DEFAULT_MACHINE_UUID Information must be specified"
-#endif
-
-#ifndef WEBSITE_URL
-  #error "WEBSITE_URL Information must be specified"
+  #error "SHORT_BUILD_VERSION must be specified."
+#elif !defined(DETAILED_BUILD_VERSION)
+  #error "BUILD_VERSION must be specified."
+#elif !defined(STRING_DISTRIBUTION_DATE)
+  #error "STRING_DISTRIBUTION_DATE must be specified."
+#elif !defined(PROTOCOL_VERSION)
+  #error "PROTOCOL_VERSION must be specified."
+#elif !defined(MACHINE_NAME)
+  #error "MACHINE_NAME must be specified."
+#elif !defined(SOURCE_CODE_URL)
+  #error "SOURCE_CODE_URL must be specified."
+#elif !defined(DEFAULT_MACHINE_UUID)
+  #error "DEFAULT_MACHINE_UUID must be specified."
+#elif !defined(WEBSITE_URL)
+  #error "WEBSITE_URL must be specified."
 #endif
 
 /**
  * Dual Stepper Drivers
  */
-#if ENABLED(Z_DUAL_STEPPER_DRIVERS) && ENABLED(Y_DUAL_STEPPER_DRIVERS)
-  #error "You cannot have dual stepper drivers for both Y and Z."
+#if ENABLED(X_DUAL_STEPPER_DRIVERS) && ENABLED(DUAL_X_CARRIAGE)
+  #error "DUAL_X_CARRIAGE is not compatible with X_DUAL_STEPPER_DRIVERS."
+#elif ENABLED(X_DUAL_STEPPER_DRIVERS) && (!HAS_X2_ENABLE || !HAS_X2_STEP || !HAS_X2_DIR)
+  #error "X_DUAL_STEPPER_DRIVERS requires X2 pins (and an extra E plug)."
+#elif ENABLED(Y_DUAL_STEPPER_DRIVERS) && (!HAS_Y2_ENABLE || !HAS_Y2_STEP || !HAS_Y2_DIR)
+  #error "Y_DUAL_STEPPER_DRIVERS requires Y2 pins (and an extra E plug)."
+#elif ENABLED(Z_DUAL_STEPPER_DRIVERS) && (!HAS_Z2_ENABLE || !HAS_Z2_STEP || !HAS_Z2_DIR)
+  #error "Z_DUAL_STEPPER_DRIVERS requires Z2 pins (and an extra E plug)."
 #endif
 
 /**
@@ -125,21 +117,21 @@
 #endif
 
 /**
- * Filament Runout needs a pin and SD Support
+ * Filament Runout needs a pin and either SD Support or Auto print start detection
  */
 #if ENABLED(FILAMENT_RUNOUT_SENSOR)
   #if !HAS_FIL_RUNOUT
     #error "FILAMENT_RUNOUT_SENSOR requires FIL_RUNOUT_PIN."
-  #elif DISABLED(SDSUPPORT)
-    #error "FILAMENT_RUNOUT_SENSOR requires SDSUPPORT."
+  #elif DISABLED(SDSUPPORT) && DISABLED(PRINTJOB_TIMER_AUTOSTART)
+    #error "FILAMENT_RUNOUT_SENSOR requires SDSUPPORT or PRINTJOB_TIMER_AUTOSTART."
   #endif
 #endif
 
 /**
  * Filament Change with Extruder Runout Prevention
  */
-#if ENABLED(FILAMENTCHANGEENABLE) && ENABLED(EXTRUDER_RUNOUT_PREVENT)
-  #error "EXTRUDER_RUNOUT_PREVENT currently incompatible with FILAMENTCHANGE."
+#if ENABLED(FILAMENT_CHANGE_FEATURE) && ENABLED(EXTRUDER_RUNOUT_PREVENT)
+  #error "EXTRUDER_RUNOUT_PREVENT is incompatible with FILAMENT_CHANGE_FEATURE."
 #endif
 
 /**
@@ -166,16 +158,44 @@
     #error "EXTRUDERS must be 1 with HEATERS_PARALLEL."
   #endif
 
-  #if ENABLED(Y_DUAL_STEPPER_DRIVERS)
-    #error "EXTRUDERS must be 1 with Y_DUAL_STEPPER_DRIVERS."
-  #endif
-
-  #if ENABLED(Z_DUAL_STEPPER_DRIVERS)
-    #error "EXTRUDERS must be 1 with Z_DUAL_STEPPER_DRIVERS."
-  #endif
-
 #elif ENABLED(SINGLENOZZLE)
   #error "SINGLENOZZLE requires 2 or more EXTRUDERS."
+#endif
+
+/**
+ * Only one type of extruder allowed
+ */
+#if (ENABLED(SWITCHING_EXTRUDER) && (ENABLED(SINGLENOZZLE) || ENABLED(MIXING_EXTRUDER))) \
+  || (ENABLED(SINGLENOZZLE) && ENABLED(MIXING_EXTRUDER))
+    #error "Please define only one type of extruder: SINGLENOZZLE, SWITCHING_EXTRUDER, or MIXING_EXTRUDER."
+#endif
+
+/**
+ * Single Stepper Dual Extruder with switching servo
+ */
+#if ENABLED(SWITCHING_EXTRUDER)
+  #if ENABLED(DUAL_X_CARRIAGE)
+    #error "SWITCHING_EXTRUDER and DUAL_X_CARRIAGE are incompatible."
+  #elif EXTRUDERS != 2
+    #error "SWITCHING_EXTRUDER requires exactly 2 EXTRUDERS."
+  #elif NUM_SERVOS < 1
+    #error "SWITCHING_EXTRUDER requires NUM_SERVOS >= 1."
+  #endif
+#endif
+
+/**
+ * Mixing Extruder requirements
+ */
+#if ENABLED(MIXING_EXTRUDER)
+  #if EXTRUDERS > 1
+    #error "MIXING_EXTRUDER currently only supports one extruder."
+  #endif
+  #if MIXING_STEPPERS < 2
+    #error "You must set MIXING_STEPPERS >= 2 for a mixing extruder."
+  #endif
+  #if ENABLED(FILAMENT_SENSOR)
+    #error "MIXING_EXTRUDER is incompatible with FILAMENT_SENSOR. Comment out this line to use it anyway."
+  #endif
 #endif
 
 /**
@@ -216,12 +236,10 @@
 #if ENABLED(MESH_BED_LEVELING)
   #if ENABLED(DELTA)
     #error "MESH_BED_LEVELING does not yet support DELTA printers."
-  #endif
-  #if ENABLED(AUTO_BED_LEVELING_FEATURE)
+  #elif ENABLED(AUTO_BED_LEVELING_FEATURE)
     #error "Select AUTO_BED_LEVELING_FEATURE or MESH_BED_LEVELING, not both."
-  #endif
-  #if MESH_NUM_X_POINTS > 7 || MESH_NUM_Y_POINTS > 7
-    #error "MESH_NUM_X_POINTS and MESH_NUM_Y_POINTS need to be less than 8."
+  #elif MESH_NUM_X_POINTS > 9 || MESH_NUM_Y_POINTS > 9
+    #error "MESH_NUM_X_POINTS and MESH_NUM_Y_POINTS must be less than 10."
   #endif
 #elif ENABLED(MANUAL_BED_LEVELING)
   #error "MESH_BED_LEVELING is required for MANUAL_BED_LEVELING."
@@ -232,6 +250,10 @@
  */
 
 #if PROBE_SELECTED
+
+  #if ENABLED(Z_PROBE_SLED) && ENABLED(DELTA)
+    #error "You cannot use Z_PROBE_SLED with DELTA."
+  #endif
 
   /**
    * NUM_SERVOS is required for a Z servo probe
@@ -307,6 +329,21 @@
     //#endif
   #endif
 
+  /**
+   * Make sure Z raise values are set
+   */
+  #if defined(Z_RAISE_BEFORE_PROBING) || defined(Z_RAISE_AFTER_PROBING)
+    #error "Z_RAISE_(BEFORE|AFTER)_PROBING are deprecated. Use Z_RAISE_PROBE_DEPLOY_STOW instead."
+  #elif !defined(Z_RAISE_PROBE_DEPLOY_STOW)
+    #error "You must set Z_RAISE_PROBE_DEPLOY_STOW in your configuration."
+  #elif !defined(Z_RAISE_BETWEEN_PROBINGS)
+    #error "You must set Z_RAISE_BETWEEN_PROBINGS in your configuration."
+  #elif Z_RAISE_PROBE_DEPLOY_STOW < 1
+    #error "Probes need Z_RAISE_PROBE_DEPLOY_STOW >= 1."
+  #elif Z_RAISE_BETWEEN_PROBINGS < 1
+    #error "Probes need Z_RAISE_BETWEEN_PROBINGS >= 1."
+  #endif
+
 #else
 
   /**
@@ -316,14 +353,34 @@
     #error "AUTO_BED_LEVELING_FEATURE requires a probe! Define a Z Servo, Z_PROBE_ALLEN_KEY, Z_PROBE_SLED, or FIX_MOUNTED_PROBE."
   #elif ENABLED(Z_MIN_PROBE_REPEATABILITY_TEST)
     #error "Z_MIN_PROBE_REPEATABILITY_TEST requires a probe! Define a Z Servo, Z_PROBE_ALLEN_KEY, Z_PROBE_SLED, or FIX_MOUNTED_PROBE."
+  #elif ENABLED(Z_SAFE_HOMING)
+    #error "Z_SAFE_HOMING currently requires a probe."
   #endif
 
 #endif
 
 /**
+ * Make sure Z_SAFE_HOMING point is reachable
+ */
+#if ENABLED(Z_SAFE_HOMING)
+  #if Z_SAFE_HOMING_X_POINT < MIN_PROBE_X || Z_SAFE_HOMING_X_POINT > MAX_PROBE_X
+    #error "The given Z_SAFE_HOMING_X_POINT can't be reached by the Z probe."
+  #elif Z_SAFE_HOMING_Y_POINT < MIN_PROBE_Y || Z_SAFE_HOMING_Y_POINT > MAX_PROBE_Y
+    #error "The given Z_SAFE_HOMING_Y_POINT can't be reached by the Z probe."
+  #endif
+#endif // Z_SAFE_HOMING
+
+/**
  * Auto Bed Leveling
  */
 #if ENABLED(AUTO_BED_LEVELING_FEATURE)
+
+  /**
+   * Delta has limited bed leveling options
+   */
+  #if ENABLED(DELTA) && DISABLED(AUTO_BED_LEVELING_GRID)
+    #error "You must use AUTO_BED_LEVELING_GRID for DELTA bed leveling."
+  #endif
 
   /**
    * Require a Z min pin
@@ -410,25 +467,6 @@
 #endif
 
 /**
- * Delta has limited bed leveling options
- */
-#if ENABLED(DELTA)
-
-  #if ENABLED(AUTO_BED_LEVELING_FEATURE)
-
-    #if DISABLED(AUTO_BED_LEVELING_GRID)
-      #error "Only AUTO_BED_LEVELING_GRID is supported with DELTA."
-    #endif
-
-    #if ENABLED(Z_PROBE_SLED)
-      #error "You cannot use Z_PROBE_SLED with DELTA."
-    #endif
-
-  #endif
-
-#endif
-
-/**
  * Don't set more than one kinematic type
  */
 #if (ENABLED(DELTA) && (ENABLED(SCARA) || ENABLED(COREXY) || ENABLED(COREXZ) || ENABLED(COREYZ))) \
@@ -439,14 +477,11 @@
 #endif
 
 /**
- * Allen Key Z probe requires Delta and Auto Bed Leveling grid
+ * Allen Key
+ * Deploying the Allen Key probe uses big moves in z direction. Too dangerous for an unhomed z-axis.
  */
-#if ENABLED(Z_PROBE_ALLEN_KEY)
-  #if !ENABLED(DELTA)
-    #error "Z_PROBE_ALLEN_KEY is only usable with DELTA."
-  #elif ENABLED(MESH_BED_LEVELING) || (ENABLED(AUTO_BED_LEVELING_FEATURE) && !ENABLED(AUTO_BED_LEVELING_GRID))
-    #error "Z_PROBE_ALLEN_KEY can only use AUTO_BED_LEVELING_GRID leveling."
-  #endif
+#if ENABLED(Z_PROBE_ALLEN_KEY) && (Z_HOME_DIR < 0) && ENABLED(Z_MIN_PROBE_USES_Z_MIN_ENDSTOP_PIN)
+  #error "You can't home to a z min endstop with a Z_PROBE_ALLEN_KEY"
 #endif
 
 /**
@@ -542,12 +577,41 @@
       #elif !PIN_EXISTS(TEMP_3)
         #error "TEMP_3_PIN not defined for this board."
       #endif
+    #elif TEMP_SENSOR_3 != 0
+      #error "TEMP_SENSOR_3 shouldn't be set with only 3 extruders."
     #endif
+  #elif TEMP_SENSOR_2 != 0
+    #error "TEMP_SENSOR_2 shouldn't be set with only 2 extruders."
+  #elif TEMP_SENSOR_3 != 0
+    #error "TEMP_SENSOR_3 shouldn't be set with only 2 extruders."
   #endif
+#elif TEMP_SENSOR_1 != 0 && DISABLED(TEMP_SENSOR_1_AS_REDUNDANT)
+  #error "TEMP_SENSOR_1 shouldn't be set with only 1 extruder."
+#elif TEMP_SENSOR_2 != 0
+  #error "TEMP_SENSOR_2 shouldn't be set with only 1 extruder."
+#elif TEMP_SENSOR_3 != 0
+  #error "TEMP_SENSOR_3 shouldn't be set with only 1 extruder."
 #endif
 
 #if ENABLED(TEMP_SENSOR_1_AS_REDUNDANT) && TEMP_SENSOR_1 == 0
   #error "TEMP_SENSOR_1 is required with TEMP_SENSOR_1_AS_REDUNDANT."
+#endif
+
+/**
+ * Basic 2-nozzle duplication mode
+ */
+#if ENABLED(DUAL_NOZZLE_DUPLICATION_MODE)
+  #if HOTENDS != 2
+    #error "DUAL_NOZZLE_DUPLICATION_MODE requires exactly 2 hotends."
+  #elif ENABLED(DUAL_X_CARRIAGE)
+    #error "DUAL_NOZZLE_DUPLICATION_MODE is incompatible with DUAL_X_CARRIAGE."
+  #elif ENABLED(SINGLENOZZLE)
+    #error "DUAL_NOZZLE_DUPLICATION_MODE is incompatible with SINGLENOZZLE."
+  #elif ENABLED(MIXING_EXTRUDER)
+    #error "DUAL_NOZZLE_DUPLICATION_MODE is incompatible with MIXING_EXTRUDER."
+  #elif ENABLED(SWITCHING_EXTRUDER)
+    #error "DUAL_NOZZLE_DUPLICATION_MODE is incompatible with SWITCHING_EXTRUDER."
+  #endif
 #endif
 
 /**
@@ -581,6 +645,13 @@
 #endif
 
 /**
+ * emergency-command parser
+ */
+#if ENABLED(EMERGENCY_PARSER) && ENABLED(USBCON)
+  #error "EMERGENCY_PARSER does not work on boards with AT90USB processors (USBCON)."
+#endif
+
+ /**
  * Warnings for old configurations
  */
 #if WATCH_TEMP_PERIOD > 500
@@ -637,6 +708,24 @@
   #error "PROBE_SERVO_DEACTIVATION_DELAY is deprecated. Use DEACTIVATE_SERVOS_AFTER_MOVE instead."
 #elif defined(SERVO_DEACTIVATION_DELAY)
   #error "SERVO_DEACTIVATION_DELAY is deprecated. Use SERVO_DELAY instead."
+#elif ENABLED(FILAMENTCHANGEENABLE)
+  #error "FILAMENTCHANGEENABLE is now FILAMENT_CHANGE_FEATURE. Please update your configuration."
+#elif defined(PLA_PREHEAT_HOTEND_TEMP)
+  #error "PLA_PREHEAT_HOTEND_TEMP is now PREHEAT_1_TEMP_HOTEND. Please update your configuration."
+#elif defined(PLA_PREHEAT_HPB_TEMP)
+  #error "PLA_PREHEAT_HPB_TEMP is now PREHEAT_1_TEMP_BED. Please update your configuration."
+#elif defined(PLA_PREHEAT_FAN_SPEED)
+  #error "PLA_PREHEAT_FAN_SPEED is now PREHEAT_1_FAN_SPEED. Please update your configuration."
+#elif defined(ABS_PREHEAT_HOTEND_TEMP)
+  #error "ABS_PREHEAT_HOTEND_TEMP is now PREHEAT_2_TEMP_HOTEND. Please update your configuration."
+#elif defined(ABS_PREHEAT_HPB_TEMP)
+  #error "ABS_PREHEAT_HPB_TEMP is now PREHEAT_2_TEMP_BED. Please update your configuration."
+#elif defined(ABS_PREHEAT_FAN_SPEED)
+  #error "ABS_PREHEAT_FAN_SPEED is now PREHEAT_2_FAN_SPEED. Please update your configuration."
+#elif defined(ENDSTOPS_ONLY_FOR_HOMING)
+  #error "ENDSTOPS_ONLY_FOR_HOMING is deprecated. Use (disable) ENDSTOPS_ALWAYS_ON_DEFAULT instead."
+#elif defined(HOMING_FEEDRATE)
+  #error "HOMING_FEEDRATE is deprecated. Set individual rates with HOMING_FEEDRATE_(XY|Z|E) instead."
 #endif
 
 #endif //SANITYCHECK_H

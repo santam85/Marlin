@@ -1,6 +1,9 @@
 ---
 language: c
   #
+notifications:
+  email: false
+  #
 before_install:
   #
   # Fetch the tag information for the current branch
@@ -96,9 +99,9 @@ script:
   - opt_enable FIX_MOUNTED_PROBE Z_SAFE_HOMING
   - build_marlin
   #
-  # ...with AUTO_BED_LEVELING_FEATURE & DEBUG_LEVELING_FEATURE
+  # ...with AUTO_BED_LEVELING_FEATURE, Z_MIN_PROBE_REPEATABILITY_TEST, & DEBUG_LEVELING_FEATURE
   #
-  - opt_enable AUTO_BED_LEVELING_FEATURE DEBUG_LEVELING_FEATURE
+  - opt_enable AUTO_BED_LEVELING_FEATURE Z_MIN_PROBE_REPEATABILITY_TEST DEBUG_LEVELING_FEATURE
   - build_marlin
   #
   # Test a Sled Z Probe
@@ -136,6 +139,13 @@ script:
   - opt_enable EEPROM_SETTINGS EEPROM_CHITCHAT M100_FREE_MEMORY_WATCHER INCH_MODE_SUPPORT TEMPERATURE_UNITS_SUPPORT
   - build_marlin
   #
+  # Mixing Extruder
+  #
+  - restore_configs
+  - opt_enable MIXING_EXTRUDER
+  - opt_set MIXING_STEPPERS 2
+  - build_marlin
+  #
   # Test DUAL_X_CARRIAGE
   #
   - restore_configs
@@ -153,6 +163,16 @@ script:
   - opt_set LCD_FEEDBACK_FREQUENCY_DURATION_MS 10
   - opt_set LCD_FEEDBACK_FREQUENCY_HZ 100
   - opt_enable BQ_LCD_SMART_CONTROLLER SPEAKER
+  #
+  # Test SWITCHING_EXTRUDER
+  #
+  - restore_configs
+  - opt_set MOTHERBOARD BOARD_RUMBA
+  - opt_set EXTRUDERS 2
+  - opt_enable NUM_SERVOS
+  - opt_set NUM_SERVOS 1
+  - opt_set TEMP_SENSOR_1 1
+  - opt_enable SWITCHING_EXTRUDER ULTIMAKERCONTROLLER
   - build_marlin
   #
   # Test MINIRAMBO for PWM_MOTOR_CURRENT
@@ -161,11 +181,11 @@ script:
   - opt_set MOTHERBOARD BOARD_MINIRAMBO
   - build_marlin
   #
-  # Enable FILAMENTCHANGEENABLE
+  # Test FILAMENT_CHANGE_FEATURE and LCD_INFO_MENU
   #
   - restore_configs
   - opt_enable ULTIMAKERCONTROLLER
-  - opt_enable_adv FILAMENTCHANGEENABLE
+  - opt_enable_adv FILAMENT_CHANGE_FEATURE LCD_INFO_MENU
   - build_marlin
   #
   # Enable filament sensor
@@ -209,6 +229,18 @@ script:
   #
   - restore_configs
   - opt_enable PRINTCOUNTER
+  - build_marlin
+  #
+  # Test NOZZLE_PARK_FEATURE
+  #
+  - restore_configs
+  - opt_enable NOZZLE_PARK_FEATURE
+  - build_marlin
+  #
+  # Test NOZZLE_CLEAN_FEATURE
+  #
+  - restore_configs
+  - opt_enable NOZZLE_CLEAN_FEATURE
   - build_marlin
   #
   #
@@ -333,6 +365,7 @@ script:
   # SCARA Config
   #
   - use_example_configs SCARA
+  - opt_enable AUTO_BED_LEVELING_FEATURE FIX_MOUNTED_PROBE USE_ZMIN_PLUG
   - build_marlin
   #
   # tvrrug Config need to check board type for sanguino atmega644p

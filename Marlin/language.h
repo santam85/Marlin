@@ -48,6 +48,8 @@
 // cn         Chinese
 // cz         Czech
 // de         German
+// el         Greek
+// el-gr      Greek (Greece)
 // en         English
 // es         Spanish
 // eu         Basque-Euskera
@@ -117,6 +119,7 @@
 #define MSG_PLANNER_BUFFER_BYTES            "  PlannerBufferBytes: "
 #define MSG_OK                              "ok"
 #define MSG_WAIT                            "wait"
+#define MSG_STATS                           "Stats: "
 #define MSG_FILE_SAVED                      "Done saving file."
 #define MSG_ERR_LINE_NO                     "Line Number is not Last Line Number+1, Last Line: "
 #define MSG_ERR_CHECKSUM_MISMATCH           "checksum mismatch, Last Line: "
@@ -128,7 +131,7 @@
 #define MSG_INVALID_EXTRUDER                "Invalid extruder"
 #define MSG_INVALID_SOLENOID                "Invalid solenoid"
 #define MSG_ERR_NO_THERMISTORS              "No thermistors - no temperature"
-#define MSG_M115_REPORT                     "FIRMWARE_NAME:Marlin " DETAILED_BUILD_VERSION " SOURCE_CODE_URL:" SOURCE_CODE_URL " PROTOCOL_VERSION:" PROTOCOL_VERSION " MACHINE_TYPE:" MACHINE_NAME " EXTRUDER_COUNT:" STRINGIFY(EXTRUDERS) " UUID:" MACHINE_UUID "\n"
+#define MSG_M115_REPORT                     "FIRMWARE_NAME:Marlin " DETAILED_BUILD_VERSION " SOURCE_CODE_URL:" SOURCE_CODE_URL " PROTOCOL_VERSION:" PROTOCOL_VERSION " MACHINE_TYPE:" MACHINE_NAME " EXTRUDER_COUNT:" STRINGIFY(EXTRUDERS) " UUID:" MACHINE_UUID EMERGENCY_PARSER_CAPABILITIES "\n"
 #define MSG_COUNT_X                         " Count X: "
 #define MSG_COUNT_A                         " Count A: "
 #define MSG_ERR_KILLED                      "Printer halted. kill() called!"
@@ -156,8 +159,9 @@
 #define MSG_ENDSTOP_HIT                     "TRIGGERED"
 #define MSG_ENDSTOP_OPEN                    "open"
 #define MSG_HOTEND_OFFSET                   "Hotend offsets:"
+#define MSG_DUPLICATION_MODE                "Duplication mode: "
 
-#define MSG_SD_CANT_OPEN_SUBDIR             "Cannot open subdir"
+#define MSG_SD_CANT_OPEN_SUBDIR             "Cannot open subdir "
 #define MSG_SD_INIT_FAIL                    "SD init fail"
 #define MSG_SD_VOL_INIT_FAIL                "volume.init failed"
 #define MSG_SD_OPENROOT_FAIL                "openRoot failed"

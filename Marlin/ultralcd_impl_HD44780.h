@@ -20,12 +20,14 @@
  *
  */
 
-#ifndef ULTRALCD_IMPLEMENTATION_HITACHI_HD44780_H
-#define ULTRALCD_IMPLEMENTATION_HITACHI_HD44780_H
+#ifndef ULTRALCD_IMPL_HD44780_H
+#define ULTRALCD_IMPL_HD44780_H
 
 /**
 * Implementation of the LCD display routines for a Hitachi HD44780 display. These are common LCD character displays.
 **/
+
+#include "duration_t.h"
 
 extern volatile uint8_t buttons;  //an extended version of the last checked buttons in a bit array.
 
@@ -443,15 +445,6 @@ unsigned lcd_print(char c) { return charset_mapper(c); }
     lcd.setCursor(indent, 2); lcd.print('\x02'); lcd_printPGM(PSTR( "------" ));  lcd.print('\x03');
   }
 
-  void safe_delay(uint16_t del){
-    while (del > 50) {
-      del -= 50;
-      delay(50);
-      thermalManager.manage_heater();
-    }
-    delay(del);
-  }
-
   void bootscreen() {
     byte top_left[8] = {
       B00000,
@@ -571,6 +564,19 @@ unsigned lcd_print(char c) { return charset_mapper(c); }
   }
 
 #endif // SHOW_BOOTSCREEN
+
+void lcd_kill_screen() {
+  lcd.setCursor(0, 0);
+  lcd_print(lcd_status_message);
+  #if LCD_HEIGHT < 4
+    lcd.setCursor(0, 2);
+  #else
+    lcd.setCursor(0, 2);
+    lcd_printPGM(PSTR(MSG_HALTED));
+    lcd.setCursor(0, 3);
+  #endif
+  lcd_printPGM(PSTR(MSG_PLEASE_RESET));
+}
 
 FORCE_INLINE void _draw_axis_label(AxisEnum axis, const char *pstr, bool blink) {
   if (blink)
@@ -738,7 +744,7 @@ static void lcd_implementation_status_screen() {
 
     lcd.setCursor(0, 2);
     lcd.print(LCD_STR_FEEDRATE[0]);
-    lcd.print(itostr3(feedrate_multiplier));
+    lcd.print(itostr3(feedrate_percentage));
     lcd.print('%');
 
     #if LCD_WIDTH > 19 && ENABLED(SDSUPPORT)
@@ -756,15 +762,10 @@ static void lcd_implementation_status_screen() {
     lcd.setCursor(LCD_WIDTH - 6, 2);
     lcd.print(LCD_STR_CLOCK[0]);
 
-    uint16_t time = print_job_timer.duration() / 60;
-    if (time != 0) {
-      lcd.print(itostr2(time / 60));
-      lcd.print(':');
-      lcd.print(itostr2(time % 60));
-    }
-    else {
-      lcd_printPGM(PSTR("--:--"));
-    }
+    char buffer[10];
+    duration_t elapsed = print_job_timer.duration();
+    elapsed.toDigital(buffer);
+    lcd_print(buffer);
 
   #endif // LCD_HEIGHT > 3
 
@@ -814,6 +815,30 @@ static void lcd_implementation_status_screen() {
 
   lcd_print(lcd_status_message);
 }
+
+#if ENABLED(LCD_INFO_MENU) || ENABLED(FILAMENT_CHANGE_FEATURE)
+
+  static void lcd_implementation_drawmenu_static(uint8_t row, const char* pstr, bool center=true, bool invert=false, const char *valstr=NULL) {
+    UNUSED(invert);
+    char c;
+    int8_t n = LCD_WIDTH;
+    lcd.setCursor(0, row);
+    if (center && !valstr) {
+      int8_t pad = (LCD_WIDTH - lcd_strlen_P(pstr)) / 2;
+      while (--pad >= 0) { lcd.print(' '); n--; }
+    }
+    while (n > 0 && (c = pgm_read_byte(pstr))) {
+      n -= lcd_print(c);
+      pstr++;
+    }
+    if (valstr) while (n > 0 && (c = *valstr)) {
+      n -= lcd_print(c);
+      valstr++;
+    }
+    while (n-- > 0) lcd.print(' ');
+  }
+
+#endif // LCD_INFO_MENU || FILAMENT_CHANGE_FEATURE
 
 static void lcd_implementation_drawmenu_generic(bool sel, uint8_t row, const char* pstr, char pre_char, char post_char) {
   char c;
@@ -978,4 +1003,4 @@ void lcd_implementation_drawedit(const char* pstr, const char* value=NULL) {
 
 #endif // LCD_HAS_SLOW_BUTTONS
 
-#endif // ULTRALCD_IMPLEMENTATION_HITACHI_HD44780_H
+#endif // ULTRALCD_IMPL_HD44780_H
