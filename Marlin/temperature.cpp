@@ -27,8 +27,8 @@
 #include "Marlin.h"
 #include "ultralcd.h"
 #include "temperature.h"
+#include "thermistortables.h"
 #include "language.h"
-#include "Sd2PinMap.h"
 
 #if ENABLED(USE_WATCHDOG)
   #include "watchdog.h"
@@ -1020,8 +1020,7 @@ void Temperature::init() {
       OUT_WRITE(MOSI_PIN, HIGH);
       OUT_WRITE(MISO_PIN, HIGH);
     #else
-      pinMode(SS_PIN, OUTPUT);
-      digitalWrite(SS_PIN, HIGH);
+      OUT_WRITE(SS_PIN, HIGH);
     #endif
 
     OUT_WRITE(MAX6675_SS, HIGH);

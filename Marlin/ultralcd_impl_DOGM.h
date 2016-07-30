@@ -36,34 +36,26 @@
 #ifndef ULTRALCD_IMPL_DOGM_H
 #define ULTRALCD_IMPL_DOGM_H
 
+#include "MarlinConfig.h"
+
 /**
  * Implementation of the LCD display routines for a DOGM128 graphic display.
  * These are common LCD 128x64 pixel graphic displays.
  */
-
-#if ENABLED(ULTIPANEL)
-  #define BLEN_A 0
-  #define BLEN_B 1
-  #define BLEN_C 2
-  #define EN_A (_BV(BLEN_A))
-  #define EN_B (_BV(BLEN_B))
-  #define EN_C (_BV(BLEN_C))
-  #define LCD_CLICKED (buttons&EN_C)
-#endif
-
-#include <U8glib.h>
-#include "dogm_bitmaps.h"
-
 #include "ultralcd.h"
 #include "ultralcd_st7920_u8glib_rrd.h"
-#include "Configuration.h"
-
+#include "dogm_bitmaps.h"
 #include "duration_t.h"
+
+#include <U8glib.h>
+
+#if ENABLED(SHOW_BOOTSCREEN) && ENABLED(SHOW_CUSTOM_BOOTSCREEN)
+  #include "_Bootscreen.h"
+#endif
 
 #if DISABLED(MAPPER_C2C3) && DISABLED(MAPPER_NON) && ENABLED(USE_BIG_EDIT_FONT)
   #undef USE_BIG_EDIT_FONT
 #endif
-
 
 #if ENABLED(USE_SMALL_INFOFONT)
   #include "dogm_font_data_6x9_marlin.h"
@@ -141,10 +133,12 @@
 #define START_COL              0
 
 // LCD selection
-#if ENABLED(U8GLIB_ST7920)
+#if ENABLED(REPRAPWORLD_GRAPHICAL_LCD)
+  U8GLIB_ST7920_128X64_4X u8g(LCD_PINS_RS);
+#elif ENABLED(U8GLIB_ST7920)
   //U8GLIB_ST7920_128X64_RRD u8g(0,0,0);
   U8GLIB_ST7920_128X64_RRD u8g(0);
-#elif defined(CARTESIO_UI)
+#elif ENABLED(CARTESIO_UI)
   // The CartesioUI display
   #if DOGLCD_MOSI != -1 && DOGLCD_SCK != -1
     // using SW-SPI

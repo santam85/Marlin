@@ -20,15 +20,22 @@
  *
  */
 
-#include "Marlin.h"
-#include "utility.h"
-#include "temperature.h"
+#ifndef MARLIN_CONFIG_H
+#define MARLIN_CONFIG_H
 
-void safe_delay(millis_t ms) {
-  while (ms > 50) {
-    ms -= 50;
-    delay(50);
-    thermalManager.manage_heater();
-  }
-  delay(ms);
-}
+#include "fastio.h"
+#include "macros.h"
+#include "boards.h"
+#include "Version.h"
+#include "Configuration.h"
+#include "Conditionals_LCD.h"
+#include "Configuration_adv.h"
+#include "pins.h"
+#ifndef USBCON
+  #define HardwareSerial_h // trick to disable the standard HWserial
+#endif
+#include "Arduino.h"
+#include "Conditionals_post.h"
+#include "SanityCheck.h"
+
+#endif // MARLIN_CONFIG_H

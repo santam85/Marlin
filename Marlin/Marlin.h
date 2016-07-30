@@ -22,12 +22,6 @@
 #ifndef MARLIN_H
 #define MARLIN_H
 
-#define  FORCE_INLINE __attribute__((always_inline)) inline
-/**
- * Compiler warning on unused variable.
- */
-#define UNUSED(x) (void) (x)
-
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -39,27 +33,24 @@
 #include <avr/eeprom.h>
 #include <avr/interrupt.h>
 
-#include "fastio.h"
-#include "Configuration.h"
-#include "pins.h"
-
-#include "utility.h"
-
-#ifndef SANITYCHECK_H
-  #error "Your Configuration.h and Configuration_adv.h files are outdated!"
-#endif
-
-#include "Arduino.h"
+#include "MarlinConfig.h"
 
 #include "enum.h"
-
-typedef unsigned long millis_t;
+#include "types.h"
+#include "fastio.h"
+#include "utility.h"
 
 #ifdef USBCON
   #include "HardwareSerial.h"
+  #if ENABLED(BLUETOOTH)
+    #define MYSERIAL bluetoothSerial
+  #else
+    #define MYSERIAL Serial
+  #endif // BLUETOOTH
+#else
+  #include "MarlinSerial.h"
+  #define MYSERIAL customizedSerial
 #endif
-
-#include "MarlinSerial.h"
 
 #include "WString.h"
 
@@ -67,16 +58,6 @@ typedef unsigned long millis_t;
   #include "printcounter.h"
 #else
   #include "stopwatch.h"
-#endif
-
-#ifdef USBCON
-  #if ENABLED(BLUETOOTH)
-    #define MYSERIAL bluetoothSerial
-  #else
-    #define MYSERIAL Serial
-  #endif // BLUETOOTH
-#else
-  #define MYSERIAL customizedSerial
 #endif
 
 #define SERIAL_CHAR(x) MYSERIAL.write(x)
@@ -114,6 +95,7 @@ void serial_echopair_P(const char* s_P, long v);
 void serial_echopair_P(const char* s_P, float v);
 void serial_echopair_P(const char* s_P, double v);
 void serial_echopair_P(const char* s_P, unsigned long v);
+FORCE_INLINE void serial_echopair_P(const char* s_P, uint8_t v) { serial_echopair_P(s_P, (int)v); }
 FORCE_INLINE void serial_echopair_P(const char* s_P, uint16_t v) { serial_echopair_P(s_P, (int)v); }
 FORCE_INLINE void serial_echopair_P(const char* s_P, bool v) { serial_echopair_P(s_P, (int)v); }
 FORCE_INLINE void serial_echopair_P(const char* s_P, void *v) { serial_echopair_P(s_P, (unsigned long)v); }
@@ -272,11 +254,6 @@ inline void refresh_cmd_timeout() { previous_cmd_ms = millis(); }
   void setPwmFrequency(uint8_t pin, int val);
 #endif
 
-#ifndef CRITICAL_SECTION_START
-  #define CRITICAL_SECTION_START  unsigned char _sreg = SREG; cli();
-  #define CRITICAL_SECTION_END    SREG = _sreg;
-#endif
-
 /**
  * Feedrate scaling and conversion
  */
@@ -335,6 +312,7 @@ float code_value_temp_diff();
     void adjust_delta(float cartesian[3]);
   #endif
 #elif ENABLED(SCARA)
+  extern float delta[3];
   extern float axis_scaling[3];  // Build size scaling
   void inverse_kinematics(const float cartesian[3]);
   void forward_kinematics_SCARA(float f_scara[3]);

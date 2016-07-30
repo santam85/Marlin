@@ -434,4 +434,17 @@
 
 #define HAS_DIGIPOTSS (PIN_EXISTS(DIGIPOTSS))
 
+#ifndef SCK_PIN
+  #define SCK_PIN  SCK
+#endif
+#ifndef MISO_PIN
+  #define MISO_PIN MISO
+#endif
+#ifndef MOSI_PIN
+  #define MOSI_PIN MOSI
+#endif
+#ifndef SS_PIN
+  #define SS_PIN   SS
+#endif
+
 #endif //__PINS_H
