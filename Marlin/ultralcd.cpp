@@ -177,60 +177,67 @@ uint8_t lcdDrawUpdate = LCDVIEW_CLEAR_CALL_REDRAW; // Set when the LCD needs to 
     static void menu_action_sddirectory(const char* filename, char* longFilename);
   #endif
 
-  #if DISABLED(LCD_I2C_VIKI)
-    #ifndef ENCODER_FEEDRATE_DEADZONE
-      #define ENCODER_FEEDRATE_DEADZONE 10
-    #endif
-    #ifndef ENCODER_STEPS_PER_MENU_ITEM
-      #define ENCODER_STEPS_PER_MENU_ITEM 5
-    #endif
-    #ifndef ENCODER_PULSES_PER_STEP
-      #define ENCODER_PULSES_PER_STEP 1
-    #endif
-  #else
-    #ifndef ENCODER_FEEDRATE_DEADZONE
-      #define ENCODER_FEEDRATE_DEADZONE 4
-    #endif
-    #ifndef ENCODER_STEPS_PER_MENU_ITEM
-      #define ENCODER_STEPS_PER_MENU_ITEM 2 // VIKI LCD rotary encoder uses a different number of steps per rotation
-    #endif
-    #ifndef ENCODER_PULSES_PER_STEP
-      #define ENCODER_PULSES_PER_STEP 1
-    #endif
-  #endif
-
-
   /* Helper macros for menus */
 
+  #ifndef ENCODER_FEEDRATE_DEADZONE
+    #define ENCODER_FEEDRATE_DEADZONE 10
+  #endif
+  #ifndef ENCODER_STEPS_PER_MENU_ITEM
+    #define ENCODER_STEPS_PER_MENU_ITEM 5
+  #endif
+  #ifndef ENCODER_PULSES_PER_STEP
+    #define ENCODER_PULSES_PER_STEP 1
+  #endif
+
   /**
-   * START_SCREEN generates the init code for a screen function
+   * START_SCREEN_OR_MENU generates init code for a screen or menu
    *
    *   encoderLine is the position based on the encoder
    *   encoderTopLine is the top menu line to display
    *   _lcdLineNr is the index of the LCD line (e.g., 0-3)
    *   _menuLineNr is the menu item to draw and process
    *   _thisItemNr is the index of each MENU_ITEM or STATIC_ITEM
+   *   _countedItems is the total number of items in the menu (after one call)
    */
-  #define _START_SCREEN(CODE, SKIP) \
+  #define START_SCREEN_OR_MENU(LIMIT) \
     ENCODER_DIRECTION_MENUS(); \
     encoderRateMultiplierEnabled = false; \
     if (encoderPosition > 0x8000) encoderPosition = 0; \
+    static int8_t _countedItems = 0; \
     int8_t encoderLine = encoderPosition / ENCODER_STEPS_PER_MENU_ITEM; \
-    NOMORE(encoderTopLine, encoderLine); \
-    int8_t _menuLineNr = encoderTopLine, _thisItemNr; \
-    bool _skipStatic = SKIP; \
-    CODE; \
-    for (int8_t _lcdLineNr = 0; _lcdLineNr < LCD_HEIGHT; _lcdLineNr++, _menuLineNr++) { \
-      _thisItemNr = 0;
+    if (_countedItems > 0 && encoderLine >= _countedItems - LIMIT) { \
+      encoderLine = _countedItems - LIMIT; \
+      encoderPosition = encoderLine * (ENCODER_STEPS_PER_MENU_ITEM); \
+    }
 
-  #define START_SCREEN() _START_SCREEN(NOOP, false)
+  #define SCREEN_OR_MENU_LOOP() \
+    int8_t _menuLineNr = encoderTopLine, _thisItemNr; \
+    for (int8_t _lcdLineNr = 0; _lcdLineNr < LCD_HEIGHT; _lcdLineNr++, _menuLineNr++) { \
+      _thisItemNr = 0
 
   /**
-   * START_MENU generates the init code for a menu function
+   * START_SCREEN  Opening code for a screen having only static items.
+   *               Do simplified scrolling of the entire screen.
    *
-   *   wasClicked indicates the controller was clicked
+   * START_MENU    Opening code for a screen with menu items.
+   *               Scroll as-needed to keep the selected line in view.
+   *               'wasClicked' indicates the controller was clicked.
    */
-  #define START_MENU() _START_SCREEN(bool wasClicked = LCD_CLICKED, true)
+  #define START_SCREEN() \
+    START_SCREEN_OR_MENU(LCD_HEIGHT); \
+    encoderTopLine = encoderLine; \
+    bool _skipStatic = false; \
+    SCREEN_OR_MENU_LOOP()
+
+  #define START_MENU() \
+    START_SCREEN_OR_MENU(1); \
+    NOMORE(encoderTopLine, encoderLine); \
+    if (encoderLine >= encoderTopLine + LCD_HEIGHT) { \
+      encoderTopLine = encoderLine - (LCD_HEIGHT - 1); \
+    } \
+    bool wasClicked = LCD_CLICKED; \
+    bool _skipStatic = true; \
+    SCREEN_OR_MENU_LOOP()
 
   /**
    * MENU_ITEM generates draw & handler code for a menu item, potentially calling:
@@ -265,7 +272,7 @@ uint8_t lcdDrawUpdate = LCDVIEW_CLEAR_CALL_REDRAW; // Set when the LCD needs to 
         return; \
       } \
     } \
-    _thisItemNr++
+    ++_thisItemNr
 
   #define MENU_ITEM(TYPE, LABEL, ARGS...) do { \
       _skipStatic = false; \
@@ -283,42 +290,15 @@ uint8_t lcdDrawUpdate = LCDVIEW_CLEAR_CALL_REDRAW; // Set when the LCD needs to 
       if (lcdDrawUpdate) \
         lcd_implementation_drawmenu_static(_lcdLineNr, PSTR(LABEL), ## ARGS); \
     } \
-    _thisItemNr++
+    ++_thisItemNr
 
-  /**
-   *
-   * END_SCREEN  Closing code for a screen having only static items.
-   *             Do simplified scrolling of the entire screen.
-   *
-   * END_MENU    Closing code for a screen with menu items.
-   *             Scroll as-needed to keep the selected line in view.
-   *
-   * At this point _thisItemNr equals the total number of items.
-   *
-   */
-
-  // Simple-scroll by using encoderLine as encoderTopLine
   #define END_SCREEN() \
     } \
-    NOMORE(encoderLine, _thisItemNr - LCD_HEIGHT); \
-    NOLESS(encoderLine, 0); \
-    encoderPosition = encoderLine * (ENCODER_STEPS_PER_MENU_ITEM); \
-    if (encoderTopLine != encoderLine) { \
-      encoderTopLine = encoderLine; \
-      lcdDrawUpdate = LCDVIEW_CALL_REDRAW_NEXT; \
-    }
+    _countedItems = _thisItemNr
 
-  // Scroll through menu items, scrolling as-needed to stay in view
   #define END_MENU() \
     } \
-    if (encoderLine >= _thisItemNr) { \
-      encoderLine = _thisItemNr - 1; \
-      encoderPosition = encoderLine * (ENCODER_STEPS_PER_MENU_ITEM); \
-    } \
-    if (encoderLine >= encoderTopLine + LCD_HEIGHT) { \
-      encoderTopLine = encoderLine - (LCD_HEIGHT - 1); \
-      lcdDrawUpdate = LCDVIEW_CALL_REDRAW_NEXT; \
-    } \
+    _countedItems = _thisItemNr; \
     UNUSED(_skipStatic)
 
   #if ENABLED(ENCODER_RATE_MULTIPLIER)
@@ -387,22 +367,22 @@ uint8_t lcdDrawUpdate = LCDVIEW_CLEAR_CALL_REDRAW; // Set when the LCD needs to 
 
   /**
    * General function to go directly to a menu
-   * Remembers the previous position
    */
   static void lcd_goto_screen(screenFunc_t screen, const bool feedback = false, const uint32_t encoder = 0) {
     if (currentScreen != screen) {
       currentScreen = screen;
-      lcdDrawUpdate = LCDVIEW_CLEAR_CALL_REDRAW;
       encoderPosition = encoder;
-      if (feedback) lcd_quick_feedback();
       if (screen == lcd_status_screen) {
         defer_return_to_status = false;
         screen_history_depth = 0;
       }
+      if (feedback) lcd_quick_feedback();
+      lcd_implementation_clear();
       #if ENABLED(LCD_PROGRESS_BAR)
         // For LCD_PROGRESS_BAR re-initialize custom characters
         lcd_set_custom_characters(screen == lcd_status_screen);
       #endif
+      lcdDrawUpdate = LCDVIEW_CALL_REDRAW_NEXT;
     }
   }
 
@@ -504,15 +484,15 @@ static void lcd_status_screen() {
     }
 
     if (current_click) {
-      lcd_goto_screen(lcd_main_menu, true);
-      lcd_implementation_init( // to maybe revive the LCD if static electricity killed it.
-        #if ENABLED(LCD_PROGRESS_BAR) && ENABLED(ULTIPANEL)
-          currentScreen == lcd_status_screen
-        #endif
-      );
       #if ENABLED(FILAMENT_LCD_DISPLAY)
         previous_lcd_status_ms = millis();  // get status message to show up for a while
       #endif
+      lcd_implementation_init( // to maybe revive the LCD if static electricity killed it.
+        #if ENABLED(LCD_PROGRESS_BAR)
+          false
+        #endif
+      );
+      lcd_goto_screen(lcd_main_menu, true);
     }
 
     #if ENABLED(ULTIPANEL_FEEDMULTIPLY)
@@ -1005,16 +985,16 @@ void kill_screen(const char* lcd_msg) {
     static uint8_t _lcd_level_bed_position;
 
     // Utility to go to the next mesh point
-    // A raise is added between points if MIN_Z_HEIGHT_FOR_HOMING is in use
+    // A raise is added between points if Z_HOMING_HEIGHT is in use
     // Note: During Manual Bed Leveling the homed Z position is MESH_HOME_SEARCH_Z
     // Z position will be restored with the final action, a G28
     inline void _mbl_goto_xy(float x, float y) {
-      current_position[Z_AXIS] = MESH_HOME_SEARCH_Z + MIN_Z_HEIGHT_FOR_HOMING;
+      current_position[Z_AXIS] = MESH_HOME_SEARCH_Z + Z_HOMING_HEIGHT;
       line_to_current(Z_AXIS);
       current_position[X_AXIS] = x + home_offset[X_AXIS];
       current_position[Y_AXIS] = y + home_offset[Y_AXIS];
       line_to_current(manual_feedrate_mm_m[X_AXIS] <= manual_feedrate_mm_m[Y_AXIS] ? X_AXIS : Y_AXIS);
-      #if MIN_Z_HEIGHT_FOR_HOMING > 0
+      #if Z_HOMING_HEIGHT > 0
         current_position[Z_AXIS] = MESH_HOME_SEARCH_Z; // How do condition and action match?
         line_to_current(Z_AXIS);
       #endif
@@ -1065,7 +1045,7 @@ void kill_screen(const char* lcd_msg) {
           if (_lcd_level_bed_position == (MESH_NUM_X_POINTS) * (MESH_NUM_Y_POINTS)) {
             lcd_goto_screen(_lcd_level_bed_done, true);
 
-            current_position[Z_AXIS] = MESH_HOME_SEARCH_Z + MIN_Z_HEIGHT_FOR_HOMING;
+            current_position[Z_AXIS] = MESH_HOME_SEARCH_Z + Z_HOMING_HEIGHT;
             line_to_current(Z_AXIS);
             stepper.synchronize();
 
@@ -1074,8 +1054,8 @@ void kill_screen(const char* lcd_msg) {
             lcd_return_to_status();
             //LCD_MESSAGEPGM(MSG_LEVEL_BED_DONE);
             #if HAS_BUZZER
-              buzzer.tone(200, 659);
-              buzzer.tone(200, 698);
+              lcd_buzz(200, 659);
+              lcd_buzz(200, 698);
             #endif
           }
           else {
@@ -1280,14 +1260,27 @@ void kill_screen(const char* lcd_msg) {
 
   #if ENABLED(DELTA_CALIBRATION_MENU)
 
+    static void _goto_tower_pos(const float &a) {
+      do_blocking_move_to(
+        a < 0 ? X_HOME_POS : sin(a) * -(DELTA_PRINTABLE_RADIUS),
+        a < 0 ? Y_HOME_POS : cos(a) *  (DELTA_PRINTABLE_RADIUS),
+        4
+      );
+    }
+
+    static void _goto_tower_x() { _goto_tower_pos(RADIANS(120)); }
+    static void _goto_tower_y() { _goto_tower_pos(RADIANS(240)); }
+    static void _goto_tower_z() { _goto_tower_pos(0); }
+    static void _goto_center()  { _goto_tower_pos(-1); }
+
     static void lcd_delta_calibrate_menu() {
       START_MENU();
       MENU_ITEM(back, MSG_MAIN);
       MENU_ITEM(gcode, MSG_AUTO_HOME, PSTR("G28"));
-      MENU_ITEM(gcode, MSG_DELTA_CALIBRATE_X, PSTR("G0 F8000 X-77.94 Y-45 Z0"));
-      MENU_ITEM(gcode, MSG_DELTA_CALIBRATE_Y, PSTR("G0 F8000 X77.94 Y-45 Z0"));
-      MENU_ITEM(gcode, MSG_DELTA_CALIBRATE_Z, PSTR("G0 F8000 X0 Y90 Z0"));
-      MENU_ITEM(gcode, MSG_DELTA_CALIBRATE_CENTER, PSTR("G0 F8000 X0 Y0 Z0"));
+      MENU_ITEM(function, MSG_DELTA_CALIBRATE_X, _goto_tower_x);
+      MENU_ITEM(function, MSG_DELTA_CALIBRATE_Y, _goto_tower_y);
+      MENU_ITEM(function, MSG_DELTA_CALIBRATE_Z, _goto_tower_z);
+      MENU_ITEM(function, MSG_DELTA_CALIBRATE_CENTER, _goto_center);
       END_MENU();
     }
 
@@ -1992,7 +1985,7 @@ void kill_screen(const char* lcd_msg) {
         STATIC_ITEM(MSG_INFO_PRINT_LONGEST ": ", false, false);                                        // Longest job time:
         STATIC_ITEM("", false, false, buffer);                                                         // 99y 364d 23h 59m 59s
 
-        sprintf_P(buffer, PSTR("%im"), stats.filamentUsed / 1000);
+        sprintf_P(buffer, PSTR("%ld.%im"), long(stats.filamentUsed / 1000), int(stats.filamentUsed / 100) % 10);
         STATIC_ITEM(MSG_INFO_PRINT_FILAMENT ": ", false, false);                                       // Extruded total:
         STATIC_ITEM("", false, false, buffer);                                                         // 125m
         END_SCREEN();
@@ -2111,7 +2104,6 @@ void kill_screen(const char* lcd_msg) {
 
     static void lcd_filament_change_resume_print() {
       filament_change_menu_response = FILAMENT_CHANGE_RESPONSE_RESUME_PRINT;
-      lcdDrawUpdate = 2;
       lcd_goto_screen(lcd_status_screen);
     }
 
@@ -2342,23 +2334,25 @@ void kill_screen(const char* lcd_msg) {
    * Audio feedback for controller clicks
    *
    */
-
-  #if ENABLED(LCD_USE_I2C_BUZZER)
-    void lcd_buzz(long duration, uint16_t freq) { // called from buzz() in Marlin_main.cpp where lcd is unknown
+  void lcd_buzz(long duration, uint16_t freq) {
+    #if ENABLED(LCD_USE_I2C_BUZZER)
       lcd.buzz(duration, freq);
-    }
-  #endif
+    #elif PIN_EXISTS(BEEPER)
+      buzzer.tone(duration, freq);
+    #else
+      UNUSED(duration); UNUSED(freq);
+    #endif
+  }
 
   void lcd_quick_feedback() {
     lcdDrawUpdate = LCDVIEW_CLEAR_CALL_REDRAW;
     next_button_update_ms = millis() + 500;
 
     // Buzz and wait. The delay is needed for buttons to settle!
+    lcd_buzz(LCD_FEEDBACK_FREQUENCY_DURATION_MS, LCD_FEEDBACK_FREQUENCY_HZ);
     #if ENABLED(LCD_USE_I2C_BUZZER)
-      lcd.buzz(LCD_FEEDBACK_FREQUENCY_DURATION_MS, LCD_FEEDBACK_FREQUENCY_HZ);
       delay(10);
     #elif PIN_EXISTS(BEEPER)
-      buzzer.tone(LCD_FEEDBACK_FREQUENCY_DURATION_MS, LCD_FEEDBACK_FREQUENCY_HZ);
       for (int8_t i = 5; i--;) { buzzer.tick(); delay(2); }
     #endif
   }
@@ -2395,12 +2389,15 @@ void kill_screen(const char* lcd_msg) {
     (*callback)();
   }
 
-#endif //ULTIPANEL
+#endif // ULTIPANEL
 
-/** LCD API **/
 void lcd_init() {
 
-  lcd_implementation_init();
+  lcd_implementation_init(
+    #if ENABLED(LCD_PROGRESS_BAR)
+      true
+    #endif
+  );
 
   #if ENABLED(NEWPANEL)
     #if BUTTON_EXISTS(EN1)
@@ -2555,12 +2552,6 @@ void lcd_update() {
 
     bool sd_status = IS_SD_INSERTED;
     if (sd_status != lcd_sd_status && lcd_detected()) {
-      lcdDrawUpdate = LCDVIEW_CLEAR_CALL_REDRAW;
-      lcd_implementation_init( // to maybe revive the LCD if static electricity killed it.
-        #if ENABLED(LCD_PROGRESS_BAR) && ENABLED(ULTIPANEL)
-          currentScreen == lcd_status_screen
-        #endif
-      );
 
       if (sd_status) {
         card.initsd();
@@ -2572,6 +2563,12 @@ void lcd_update() {
       }
 
       lcd_sd_status = sd_status;
+      lcdDrawUpdate = LCDVIEW_CLEAR_CALL_REDRAW;
+      lcd_implementation_init( // to maybe revive the LCD if static electricity killed it.
+        #if ENABLED(LCD_PROGRESS_BAR)
+          currentScreen == lcd_status_screen
+        #endif
+      );
     }
 
   #endif //SDSUPPORT && SD_DETECT_PIN
@@ -2689,6 +2686,12 @@ void lcd_update() {
           break;
       }
 
+      #if ENABLED(ULTIPANEL)
+        #define CURRENTSCREEN() (*currentScreen)()
+      #else
+        #define CURRENTSCREEN() lcd_status_screen()
+      #endif
+
       #if ENABLED(DOGLCD)  // Changes due to different driver architecture of the DOGM display
         static int8_t dot_color = 0;
         dot_color = 1 - dot_color;
@@ -2699,12 +2702,10 @@ void lcd_update() {
           u8g.setColorIndex(dot_color); // Set color for the alive dot
           u8g.drawPixel(127, 63); // draw alive dot
           u8g.setColorIndex(1); // black on white
-          (*currentScreen)();
+          CURRENTSCREEN();
         } while (u8g.nextPage());
-      #elif ENABLED(ULTIPANEL)
-        (*currentScreen)();
       #else
-        lcd_status_screen();
+        CURRENTSCREEN();
       #endif
     }
 
