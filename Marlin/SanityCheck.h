@@ -133,6 +133,10 @@
   #error "Z_RAISE_(BEFORE|AFTER)_PROBING are deprecated. Use Z_PROBE_DEPLOY_HEIGHT instead."
 #elif defined(Z_RAISE_PROBE_DEPLOY_STOW) || defined(Z_RAISE_BETWEEN_PROBINGS)
   #error "Z_RAISE_PROBE_DEPLOY_STOW and Z_RAISE_BETWEEN_PROBINGS are now Z_PROBE_DEPLOY_HEIGHT and Z_PROBE_TRAVEL_HEIGHT Please update your configuration."
+#elif !defined(MIN_STEPS_PER_SEGMENT)
+  #error "\"dropsegments\" is replaced with MIN_STEPS_PER_SEGMENT (and increases by 1). Please update Configuration_adv.h."
+#elif defined(PREVENT_DANGEROUS_EXTRUDE)
+  #error "PREVENT_DANGEROUS_EXTRUDE is now PREVENT_COLD_EXTRUSION. Please update your configuration."
 #endif
 
 /**
@@ -190,6 +194,13 @@
 #if ENABLED(DELTA)
   #if DISABLED(USE_XMAX_PLUG) && DISABLED(USE_YMAX_PLUG) && DISABLED(USE_ZMAX_PLUG)
     #error "You probably want to use Max Endstops for DELTA!"
+  #endif
+  #if ENABLED(AUTO_BED_LEVELING_GRID)
+    #if (AUTO_BED_LEVELING_GRID_POINTS & 1) == 0
+      #error "DELTA requires an odd value for AUTO_BED_LEVELING_GRID_POINTS."
+    #elif AUTO_BED_LEVELING_GRID_POINTS < 3
+      #error "DELTA requires at least 3 AUTO_BED_LEVELING_GRID_POINTS."
+    #endif
   #endif
 #endif
 
@@ -746,4 +757,15 @@
  */
 #if ENABLED(EMERGENCY_PARSER) && defined(USBCON)
   #error "EMERGENCY_PARSER does not work on boards with AT90USB processors (USBCON)."
+#endif
+
+/**
+ * I2C bus
+ */
+#if ENABLED(EXPERIMENTAL_I2CBUS) && I2C_SLAVE_ADDRESS > 0
+  #if I2C_SLAVE_ADDRESS < 8
+    #error "I2C_SLAVE_ADDRESS can't be less than 8. (Addresses 0 - 7 are reserved.)"
+  #elif I2C_SLAVE_ADDRESS > 127
+    #error "I2C_SLAVE_ADDRESS can't be over 127. (Only 7 bits allowed.)"
+  #endif
 #endif
