@@ -408,6 +408,9 @@
 #ifndef MSG_ERR_MINTEMP_BED
   #define MSG_ERR_MINTEMP_BED                 "Err: MINTEMP BED"
 #endif
+#ifndef MSG_ERR_Z_HOMING
+  #define MSG_ERR_Z_HOMING                    "G28 Z Forbidden"
+#endif
 #ifndef MSG_HALTED
   #define MSG_HALTED                          "PRINTER HALTED"
 #endif
@@ -607,31 +610,5 @@
     #define MSG_FILAMENT_CHANGE_RESUME_1        "Resuming..."
   #endif
 #endif // LCD_HEIGHT < 4
-
-// Never translate these strings
-#define MSG_X "X"
-#define MSG_Y "Y"
-#define MSG_Z "Z"
-#define MSG_E "E"
-#define MSG_H1 "1"
-#define MSG_H2 "2"
-#define MSG_H3 "3"
-#define MSG_H4 "4"
-#define MSG_N1 " 1"
-#define MSG_N2 " 2"
-#define MSG_N3 " 3"
-#define MSG_N4 " 4"
-#define MSG_E1 " E1"
-#define MSG_E2 " E2"
-#define MSG_E3 " E3"
-#define MSG_E4 " E4"
-#define MSG_MOVE_E1 "1"
-#define MSG_MOVE_E2 "2"
-#define MSG_MOVE_E3 "3"
-#define MSG_MOVE_E4 "4"
-#define MSG_DIAM_E1 " 1"
-#define MSG_DIAM_E2 " 2"
-#define MSG_DIAM_E3 " 3"
-#define MSG_DIAM_E4 " 4"
 
 #endif // LANGUAGE_EN_H

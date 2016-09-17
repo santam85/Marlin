@@ -157,9 +157,9 @@
 #define MSG_ENDSTOP_OPEN                    "open"
 #define MSG_HOTEND_OFFSET                   "Hotend offsets:"
 #define MSG_DUPLICATION_MODE                "Duplication mode: "
-#define MSG_SOFT_ENDSTOPS                   "Soft endstops"
-#define MSG_SOFT_MIN                        "Min"
-#define MSG_SOFT_MAX                        "Max"
+#define MSG_SOFT_ENDSTOPS                   "Soft endstops: "
+#define MSG_SOFT_MIN                        "  Min: "
+#define MSG_SOFT_MAX                        "  Max: "
 
 #define MSG_SD_CANT_OPEN_SUBDIR             "Cannot open subdir "
 #define MSG_SD_INIT_FAIL                    "SD init fail"
@@ -243,6 +243,32 @@
 #define LANGUAGE_INCL_(M) STRINGIFY_(language_##M.h)
 #define LANGUAGE_INCL(M) LANGUAGE_INCL_(M)
 #define INCLUDE_LANGUAGE LANGUAGE_INCL(LCD_LANGUAGE)
+
+// Never translate these strings
+#define MSG_X "X"
+#define MSG_Y "Y"
+#define MSG_Z "Z"
+#define MSG_E "E"
+#define MSG_H1 "1"
+#define MSG_H2 "2"
+#define MSG_H3 "3"
+#define MSG_H4 "4"
+#define MSG_N1 " 1"
+#define MSG_N2 " 2"
+#define MSG_N3 " 3"
+#define MSG_N4 " 4"
+#define MSG_E1 " E1"
+#define MSG_E2 " E2"
+#define MSG_E3 " E3"
+#define MSG_E4 " E4"
+#define MSG_MOVE_E1 "1"
+#define MSG_MOVE_E2 "2"
+#define MSG_MOVE_E3 "3"
+#define MSG_MOVE_E4 "4"
+#define MSG_DIAM_E1 " 1"
+#define MSG_DIAM_E2 " 2"
+#define MSG_DIAM_E3 " 3"
+#define MSG_DIAM_E4 " 4"
 
 #include INCLUDE_LANGUAGE
 
