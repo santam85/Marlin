@@ -38,7 +38,7 @@
   #include "vector_3.h"
 #endif
 
-#if ENABLED(AUTO_BED_LEVELING_LINEAR)
+#if ENABLED(AUTO_BED_LEVELING_LINEAR_GRID)
   #include "qr_solve.h"
 #elif ENABLED(MESH_BED_LEVELING)
   #include "mesh_bed_leveling.h"
@@ -253,7 +253,6 @@
  * M362 - SCARA calibration: Move to cal-position PsiA (0 deg calibration)
  * M363 - SCARA calibration: Move to cal-position PsiB (90 deg calibration - steps per degree)
  * M364 - SCARA calibration: Move to cal-position PSIC (90 deg to Theta calibration position)
- * M365 - SCARA calibration: Scaling factor, X, Y, Z axis
  * ************* SCARA End ***************
  *
  * ************ Custom codes - This can change to suit future G-code regulations
@@ -352,7 +351,7 @@ static bool relative_mode = false;
 volatile bool wait_for_heatup = true;
 
 #if ENABLED(EMERGENCY_PARSER) && DISABLED(ULTIPANEL)
-  wait_for_user = false;
+  volatile bool wait_for_user = false;
 #endif
 
 const char errormagic[] PROGMEM = "Error:";
@@ -401,7 +400,6 @@ static uint8_t target_extruder;
 
 #if ENABLED(AUTO_BED_LEVELING_FEATURE)
   float xy_probe_feedrate_mm_s = MMM_TO_MMS(XY_PROBE_SPEED);
-  bool bed_leveling_in_progress = false;
   #define XY_PROBE_FEEDRATE_MM_S xy_probe_feedrate_mm_s
 #elif defined(XY_PROBE_SPEED)
   #define XY_PROBE_FEEDRATE_MM_S MMM_TO_MMS(XY_PROBE_SPEED)
@@ -495,7 +493,7 @@ static uint8_t target_extruder;
 
 #if ENABLED(AUTO_BED_LEVELING_NONLINEAR)
   int nonlinear_grid_spacing[2] = { 0 };
-  float bed_level_grid[AUTO_BED_LEVELING_GRID_POINTS][AUTO_BED_LEVELING_GRID_POINTS];
+  float bed_level_grid[ABL_GRID_POINTS_X][ABL_GRID_POINTS_Y];
 #endif
 
 #if IS_SCARA
@@ -505,8 +503,7 @@ static uint8_t target_extruder;
               L2_2 = sq(float(L2));
 
   float delta_segments_per_second = SCARA_SEGMENTS_PER_SECOND,
-        delta[ABC],
-        axis_scaling[ABC] = { 1, 1, 1 };    // Build size scaling, default to 1
+        delta[ABC];
 #endif
 
 float cartes[XYZ] = { 0 };
@@ -598,7 +595,7 @@ void process_next_command();
 void prepare_move_to_destination();
 
 void get_cartesian_from_steppers();
-void set_current_from_steppers_for_axis(AxisEnum axis);
+void set_current_from_steppers_for_axis(const AxisEnum axis);
 
 #if ENABLED(ARC_SUPPORT)
   void plan_arc(float target[NUM_AXIS], float* offset, uint8_t clockwise);
@@ -647,9 +644,9 @@ static void report_current_position();
 
 /**
  * sync_plan_position
- * Set planner / stepper positions to the cartesian current_position.
- * The stepper code translates these coordinates into step units.
- * Allows translation between steps and millimeters for cartesian & core robots
+ *
+ * Set the planner/stepper positions directly from current_position with
+ * no kinematic translation. Used for homing axes and cartesian/core syncing.
  */
 inline void sync_plan_position() {
   #if ENABLED(DEBUG_LEVELING_FEATURE)
@@ -660,16 +657,20 @@ inline void sync_plan_position() {
 inline void sync_plan_position_e() { planner.set_e_position_mm(current_position[E_AXIS]); }
 
 #if IS_KINEMATIC
+
   inline void sync_plan_position_kinematic() {
     #if ENABLED(DEBUG_LEVELING_FEATURE)
       if (DEBUGGING(LEVELING)) DEBUG_POS("sync_plan_position_kinematic", current_position);
     #endif
     inverse_kinematics(current_position);
-    planner.set_position_mm(delta[X_AXIS], delta[Y_AXIS], delta[Z_AXIS], current_position[E_AXIS]);
+    planner.set_position_mm(delta[A_AXIS], delta[B_AXIS], delta[C_AXIS], current_position[E_AXIS]);
   }
   #define SYNC_PLAN_POSITION_KINEMATIC() sync_plan_position_kinematic()
+
 #else
+
   #define SYNC_PLAN_POSITION_KINEMATIC() sync_plan_position()
+
 #endif
 
 #if ENABLED(SDSUPPORT)
@@ -796,7 +797,6 @@ void setup_homepin(void) {
     WRITE(HOME_PIN, HIGH);
   #endif
 }
-
 
 void setup_photpin() {
   #if HAS_PHOTOGRAPH
@@ -1129,7 +1129,7 @@ inline uint16_t code_value_ushort() { return (uint16_t)strtoul(seen_pointer + 1,
 
 inline uint8_t code_value_byte() { return (uint8_t)(constrain(strtol(seen_pointer + 1, NULL, 10), 0, 255)); }
 
-inline bool code_value_bool() { return code_value_byte() > 0; }
+inline bool code_value_bool() { return !code_has_value() || code_value_byte() > 0; }
 
 #if ENABLED(INCH_MODE_SUPPORT)
   inline void set_input_linear_units(LinearUnit units) {
@@ -1325,6 +1325,23 @@ static void set_home_offset(AxisEnum axis, float v) {
   update_software_endstops(axis);
 }
 
+/**
+ * Set an axis' current position to its home position (after homing).
+ *
+ * For Core and Cartesian robots this applies one-to-one when an
+ * individual axis has been homed.
+ *
+ * DELTA should wait until all homing is done before setting the XYZ
+ * current_position to home, because homing is a single operation.
+ * In the case where the axis positions are already known and previously
+ * homed, DELTA could home to X or Y individually by moving either one
+ * to the center. However, homing Z always homes XY and Z.
+ *
+ * SCARA should wait until all XY homing is done before setting the XY
+ * current_position to home, because neither X nor Y is at home until
+ * both are at home. Z can however be homed individually.
+ * 
+ */
 static void set_axis_is_at_home(AxisEnum axis) {
   #if ENABLED(DEBUG_LEVELING_FEATURE)
     if (DEBUGGING(LEVELING)) {
@@ -1333,7 +1350,10 @@ static void set_axis_is_at_home(AxisEnum axis) {
     }
   #endif
 
+  axis_known_position[axis] = axis_homed[axis] = true;
+
   position_shift[axis] = 0;
+  update_software_endstops(axis);
 
   #if ENABLED(DUAL_X_CARRIAGE)
     if (axis == X_AXIS && (active_extruder != 0 || dual_x_carriage_mode == DXC_DUPLICATION_MODE)) {
@@ -1357,8 +1377,8 @@ static void set_axis_is_at_home(AxisEnum axis) {
       // SERIAL_ECHOLNPAIR(" Y:", homeposition[Y_AXIS]);
 
       /**
-       * Works out real Homeposition angles using inverse kinematics,
-       * and calculates homing offset using forward kinematics
+       * Get Home position SCARA arm angles using inverse kinematics,
+       * and calculate homing offset using forward kinematics
        */
       inverse_kinematics(homeposition);
       forward_kinematics_SCARA(delta[A_AXIS], delta[B_AXIS]);
@@ -1379,7 +1399,6 @@ static void set_axis_is_at_home(AxisEnum axis) {
   #endif
   {
     current_position[axis] = LOGICAL_POSITION(base_home_pos(axis), axis);
-    update_software_endstops(axis);
 
     if (axis == Z_AXIS) {
       #if HAS_BED_PROBE && Z_HOME_DIR < 0
@@ -1412,8 +1431,6 @@ static void set_axis_is_at_home(AxisEnum axis) {
       SERIAL_ECHOLNPGM(")");
     }
   #endif
-
-  axis_known_position[axis] = axis_homed[axis] = true;
 }
 
 /**
@@ -1429,42 +1446,42 @@ inline float get_homing_bump_feedrate(AxisEnum axis) {
   }
   return homing_feedrate_mm_s[axis] / hbd;
 }
-//
-// line_to_current_position
-// Move the planner to the current position from wherever it last moved
-// (or from wherever it has been told it is located).
-//
-inline void line_to_current_position() {
-  planner.buffer_line(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS], feedrate_mm_s, active_extruder);
-}
 
-inline void line_to_z(float zPosition) {
-  planner.buffer_line(current_position[X_AXIS], current_position[Y_AXIS], zPosition, current_position[E_AXIS], feedrate_mm_s, active_extruder);
-}
+#if !IS_KINEMATIC
+  //
+  // line_to_current_position
+  // Move the planner to the current position from wherever it last moved
+  // (or from wherever it has been told it is located).
+  //
+  inline void line_to_current_position() {
+    planner.buffer_line(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS], feedrate_mm_s, active_extruder);
+  }
 
-//
-// line_to_destination
-// Move the planner, not necessarily synced with current_position
-//
-inline void line_to_destination(float fr_mm_s) {
-  planner.buffer_line(destination[X_AXIS], destination[Y_AXIS], destination[Z_AXIS], destination[E_AXIS], fr_mm_s, active_extruder);
-}
-inline void line_to_destination() { line_to_destination(feedrate_mm_s); }
+  //
+  // line_to_destination
+  // Move the planner, not necessarily synced with current_position
+  //
+  inline void line_to_destination(float fr_mm_s) {
+    planner.buffer_line(destination[X_AXIS], destination[Y_AXIS], destination[Z_AXIS], destination[E_AXIS], fr_mm_s, active_extruder);
+  }
+  inline void line_to_destination() { line_to_destination(feedrate_mm_s); }
+
+#endif // !IS_KINEMATIC
 
 inline void set_current_to_destination() { memcpy(current_position, destination, sizeof(current_position)); }
 inline void set_destination_to_current() { memcpy(destination, current_position, sizeof(destination)); }
 
-#if ENABLED(DELTA)
+#if IS_KINEMATIC
   /**
    * Calculate delta, start a line, and set current_position to destination
    */
-  void prepare_move_to_destination_raw() {
+  void prepare_uninterpolated_move_to_destination() {
     #if ENABLED(DEBUG_LEVELING_FEATURE)
-      if (DEBUGGING(LEVELING)) DEBUG_POS("prepare_move_to_destination_raw", destination);
+      if (DEBUGGING(LEVELING)) DEBUG_POS("prepare_uninterpolated_move_to_destination", destination);
     #endif
     refresh_cmd_timeout();
     inverse_kinematics(destination);
-    planner.buffer_line(delta[X_AXIS], delta[Y_AXIS], delta[Z_AXIS], destination[E_AXIS], MMS_SCALED(feedrate_mm_s), active_extruder);
+    planner.buffer_line(delta[A_AXIS], delta[B_AXIS], delta[C_AXIS], destination[E_AXIS], MMS_SCALED(feedrate_mm_s), active_extruder);
     set_current_to_destination();
   }
 #endif
@@ -1496,7 +1513,7 @@ void do_blocking_move_to(const float &x, const float &y, const float &z, const f
         destination[X_AXIS] = x;           // move directly (uninterpolated)
         destination[Y_AXIS] = y;
         destination[Z_AXIS] = z;
-        prepare_move_to_destination_raw(); // set_current_to_destination
+        prepare_uninterpolated_move_to_destination(); // set_current_to_destination
         #if ENABLED(DEBUG_LEVELING_FEATURE)
           if (DEBUGGING(LEVELING)) DEBUG_POS("danger zone move", current_position);
         #endif
@@ -1504,7 +1521,7 @@ void do_blocking_move_to(const float &x, const float &y, const float &z, const f
       }
       else {
         destination[Z_AXIS] = delta_clip_start_height;
-        prepare_move_to_destination_raw(); // set_current_to_destination
+        prepare_uninterpolated_move_to_destination(); // set_current_to_destination
         #if ENABLED(DEBUG_LEVELING_FEATURE)
           if (DEBUGGING(LEVELING)) DEBUG_POS("zone border move", current_position);
         #endif
@@ -1513,7 +1530,7 @@ void do_blocking_move_to(const float &x, const float &y, const float &z, const f
 
     if (z > current_position[Z_AXIS]) {    // raising?
       destination[Z_AXIS] = z;
-      prepare_move_to_destination_raw();   // set_current_to_destination
+      prepare_uninterpolated_move_to_destination();   // set_current_to_destination
       #if ENABLED(DEBUG_LEVELING_FEATURE)
         if (DEBUGGING(LEVELING)) DEBUG_POS("z raise move", current_position);
       #endif
@@ -1528,7 +1545,7 @@ void do_blocking_move_to(const float &x, const float &y, const float &z, const f
 
     if (z < current_position[Z_AXIS]) {    // lowering?
       destination[Z_AXIS] = z;
-      prepare_move_to_destination_raw();   // set_current_to_destination
+      prepare_uninterpolated_move_to_destination();   // set_current_to_destination
       #if ENABLED(DEBUG_LEVELING_FEATURE)
         if (DEBUGGING(LEVELING)) DEBUG_POS("z lower move", current_position);
       #endif
@@ -1537,6 +1554,30 @@ void do_blocking_move_to(const float &x, const float &y, const float &z, const f
     #if ENABLED(DEBUG_LEVELING_FEATURE)
       if (DEBUGGING(LEVELING)) SERIAL_ECHOLNPGM("<<< do_blocking_move_to");
     #endif
+
+  #elif IS_SCARA
+
+    set_destination_to_current();
+
+    // If Z needs to raise, do it before moving XY
+    if (current_position[Z_AXIS] < z) {
+      feedrate_mm_s = (fr_mm_s != 0.0) ? fr_mm_s : homing_feedrate_mm_s[Z_AXIS];
+      destination[Z_AXIS] = z;
+      prepare_uninterpolated_move_to_destination();
+    }
+
+    feedrate_mm_s = (fr_mm_s != 0.0) ? fr_mm_s : XY_PROBE_FEEDRATE_MM_S;
+
+    destination[X_AXIS] = x;
+    destination[Y_AXIS] = y;
+    prepare_uninterpolated_move_to_destination();
+
+    // If Z needs to lower, do it after moving XY
+    if (current_position[Z_AXIS] > z) {
+      feedrate_mm_s = (fr_mm_s != 0.0) ? fr_mm_s : homing_feedrate_mm_s[Z_AXIS];
+      destination[Z_AXIS] = z;
+      prepare_uninterpolated_move_to_destination();
+    }
 
   #else
 
@@ -1849,6 +1890,12 @@ static void clean_up_after_endstop_or_probe_move() {
   #define DEPLOY_PROBE() set_probe_deployed(true)
   #define STOW_PROBE() set_probe_deployed(false)
 
+  #if ENABLED(BLTOUCH)
+    FORCE_INLINE void set_bltouch_deployed(const bool &deploy) {
+      servo[Z_ENDSTOP_SERVO_NR].move(deploy ? BLTOUCH_DEPLOY : BLTOUCH_STOW);
+    }
+  #endif
+
   // returns false for ok and true for failure
   static bool set_probe_deployed(bool deploy) {
 
@@ -1863,6 +1910,11 @@ static void clean_up_after_endstop_or_probe_move() {
 
     // Make room for probe
     do_probe_raise(_Z_PROBE_DEPLOY_HEIGHT);
+
+    // When deploying make sure BLTOUCH is not already triggered
+    #if ENABLED(BLTOUCH)
+      if (deploy && TEST_BLTOUCH()) { stop(); return true; }
+    #endif
 
     #if ENABLED(Z_PROBE_SLED)
       if (axis_unhomed_error(true, false, false)) { stop(); return true; }
@@ -1889,7 +1941,7 @@ static void clean_up_after_endstop_or_probe_move() {
 
           dock_sled(!deploy);
 
-        #elif HAS_Z_SERVO_ENDSTOP
+        #elif HAS_Z_SERVO_ENDSTOP && DISABLED(BLTOUCH)
 
           servo[Z_ENDSTOP_SERVO_NR].move(z_servo_angle[deploy ? 0 : 1]);
 
@@ -1926,8 +1978,18 @@ static void clean_up_after_endstop_or_probe_move() {
       if (DEBUGGING(LEVELING)) DEBUG_POS(">>> do_probe_move", current_position);
     #endif
 
+    // Deploy BLTouch at the start of any probe
+    #if ENABLED(BLTOUCH)
+      set_bltouch_deployed(true);
+    #endif
+
     // Move down until probe triggered
     do_blocking_move_to_z(LOGICAL_Z_POSITION(z), MMM_TO_MMS(fr_mm_m));
+
+    // Retract BLTouch immediately after a probe
+    #if ENABLED(BLTOUCH)
+      set_bltouch_deployed(false);
+    #endif
 
     // Clear endstop flags
     endstops.hit_on_purpose();
@@ -1991,7 +2053,7 @@ static void clean_up_after_endstop_or_probe_move() {
   //   - Raise to the BETWEEN height
   // - Return the probed Z position
   //
-  static float probe_pt(float x, float y, bool stow = true, int verbose_level = 1) {
+  static float probe_pt(const float &x, const float &y, bool stow = true, int verbose_level = 1) {
     #if ENABLED(DEBUG_LEVELING_FEATURE)
       if (DEBUGGING(LEVELING)) {
         SERIAL_ECHOPAIR(">>> probe_pt(", x);
@@ -2015,7 +2077,10 @@ static void clean_up_after_endstop_or_probe_move() {
         SERIAL_ECHOLNPGM(")");
       }
     #endif
+
     feedrate_mm_s = XY_PROBE_FEEDRATE_MM_S;
+
+    // Move the probe to the given XY
     do_blocking_move_to_xy(x - (X_PROBE_OFFSET_FROM_EXTRUDER), y - (Y_PROBE_OFFSET_FROM_EXTRUDER));
 
     if (DEPLOY_PROBE()) return NAN;
@@ -2107,9 +2172,9 @@ static void clean_up_after_endstop_or_probe_move() {
 #elif ENABLED(AUTO_BED_LEVELING_NONLINEAR)
 
   /**
-   * All DELTA leveling in the Marlin uses NONLINEAR_BED_LEVELING
+   * Extrapolate a single point from its neighbors
    */
-  static void extrapolate_one_point(uint8_t x, uint8_t y, int xdir, int ydir) {
+  static void extrapolate_one_point(uint8_t x, uint8_t y, int8_t xdir, int8_t ydir) {
     if (bed_level_grid[x][y]) return;  // Don't overwrite good values.
     float a = 2 * bed_level_grid[x + xdir][y] - bed_level_grid[x + xdir * 2][y], // Left to right.
           b = 2 * bed_level_grid[x][y + ydir] - bed_level_grid[x][y + ydir * 2], // Front to back.
@@ -2124,14 +2189,15 @@ static void clean_up_after_endstop_or_probe_move() {
    * using linear extrapolation, away from the center.
    */
   static void extrapolate_unprobed_bed_level() {
-    uint8_t half = (AUTO_BED_LEVELING_GRID_POINTS - 1) / 2;
-    for (uint8_t y = 0; y <= half; y++) {
-      for (uint8_t x = 0; x <= half; x++) {
+    int half_x = (ABL_GRID_POINTS_X - 1) / 2,
+        half_y = (ABL_GRID_POINTS_Y - 1) / 2;
+    for (uint8_t y = 0; y <= half_y; y++) {
+      for (uint8_t x = 0; x <= half_x; x++) {
         if (x + y < 3) continue;
-        extrapolate_one_point(half - x, half - y, x > 1 ? +1 : 0, y > 1 ? +1 : 0);
-        extrapolate_one_point(half + x, half - y, x > 1 ? -1 : 0, y > 1 ? +1 : 0);
-        extrapolate_one_point(half - x, half + y, x > 1 ? +1 : 0, y > 1 ? -1 : 0);
-        extrapolate_one_point(half + x, half + y, x > 1 ? -1 : 0, y > 1 ? -1 : 0);
+        extrapolate_one_point(half_x - x, half_y - y, x > 1 ? +1 : 0, y > 1 ? +1 : 0);
+        extrapolate_one_point(half_x + x, half_y - y, x > 1 ? -1 : 0, y > 1 ? +1 : 0);
+        extrapolate_one_point(half_x - x, half_y + y, x > 1 ? +1 : 0, y > 1 ? -1 : 0);
+        extrapolate_one_point(half_x + x, half_y + y, x > 1 ? -1 : 0, y > 1 ? -1 : 0);
       }
     }
   }
@@ -2140,8 +2206,8 @@ static void clean_up_after_endstop_or_probe_move() {
    * Print calibration results for plotting or manual frame adjustment.
    */
   static void print_bed_level() {
-    for (uint8_t y = 0; y < AUTO_BED_LEVELING_GRID_POINTS; y++) {
-      for (uint8_t x = 0; x < AUTO_BED_LEVELING_GRID_POINTS; x++) {
+    for (uint8_t y = 0; y < ABL_GRID_POINTS_Y; y++) {
+      for (uint8_t x = 0; x < ABL_GRID_POINTS_X; x++) {
         SERIAL_PROTOCOL_F(bed_level_grid[x][y], 2);
         SERIAL_PROTOCOLCHAR(' ');
       }
@@ -2152,25 +2218,51 @@ static void clean_up_after_endstop_or_probe_move() {
 #endif // AUTO_BED_LEVELING_NONLINEAR
 
 /**
- * Home an individual axis
+ * Home an individual linear axis
  */
 
 static void do_homing_move(AxisEnum axis, float where, float fr_mm_s = 0.0) {
+
+  #if HOMING_Z_WITH_PROBE && ENABLED(BLTOUCH)
+    if (axis == Z_AXIS) set_bltouch_deployed(true);
+  #endif
+
   current_position[axis] = 0;
   sync_plan_position();
   current_position[axis] = where;
   planner.buffer_line(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS], (fr_mm_s != 0.0) ? fr_mm_s : homing_feedrate_mm_s[axis], active_extruder);
   stepper.synchronize();
+
+  #if HOMING_Z_WITH_PROBE && ENABLED(BLTOUCH)
+    if (axis == Z_AXIS) set_bltouch_deployed(false);
+  #endif
+
   endstops.hit_on_purpose();
 }
+
+/**
+ * Home an individual "raw axis" to its endstop.
+ * This applies to XYZ on Cartesian and Core robots, and
+ * to the individual ABC steppers on DELTA and SCARA.
+ *
+ * At the end of the procedure the axis is marked as
+ * homed and the current position of that axis is updated.
+ * Kinematic robots should wait till all axes are homed
+ * before updating the current position.
+ */
 
 #define HOMEAXIS(LETTER) homeaxis(LETTER##_AXIS)
 
 static void homeaxis(AxisEnum axis) {
-  #define CAN_HOME(A) \
-    (axis == A##_AXIS && ((A##_MIN_PIN > -1 && A##_HOME_DIR < 0) || (A##_MAX_PIN > -1 && A##_HOME_DIR > 0)))
 
-  if (!CAN_HOME(X) && !CAN_HOME(Y) && !CAN_HOME(Z)) return;
+  #if IS_SCARA
+    // Only Z homing (with probe) is permitted
+    if (axis != Z_AXIS) { BUZZ(100, 880); return; }
+  #else
+    #define CAN_HOME(A) \
+      (axis == A##_AXIS && ((A##_MIN_PIN > -1 && A##_HOME_DIR < 0) || (A##_MAX_PIN > -1 && A##_HOME_DIR > 0)))
+    if (!CAN_HOME(X) && !CAN_HOME(Y) && !CAN_HOME(Z)) return;
+  #endif
 
   #if ENABLED(DEBUG_LEVELING_FEATURE)
     if (DEBUGGING(LEVELING)) {
@@ -2233,10 +2325,16 @@ static void homeaxis(AxisEnum axis) {
     } // Z_AXIS
   #endif
 
-  // Delta has already moved all three towers up in G28
-  // so here it re-homes each tower in turn.
-  // Delta homing treats the axes as normal linear axes.
-  #if ENABLED(DELTA)
+  #if IS_SCARA
+
+    set_axis_is_at_home(axis);
+    SYNC_PLAN_POSITION_KINEMATIC();
+
+  #elif ENABLED(DELTA)
+
+    // Delta has already moved all three towers up in G28
+    // so here it re-homes each tower in turn.
+    // Delta homing treats the axes as normal linear axes.
 
     // retrace by the amount specified in endstop_adj
     if (endstop_adj[axis] * Z_HOME_DIR < 0) {
@@ -2429,16 +2527,26 @@ void unknown_command_error() {
 
 bool position_is_reachable(float target[XYZ]) {
   float dx = RAW_X_POSITION(target[X_AXIS]),
-        dy = RAW_Y_POSITION(target[Y_AXIS]);
+        dy = RAW_Y_POSITION(target[Y_AXIS]),
+        dz = RAW_Z_POSITION(target[Z_AXIS]);
 
-  #if ENABLED(DELTA)
-    return HYPOT2(dx, dy) <= sq(DELTA_PRINTABLE_RADIUS);
+  bool good;
+  #if IS_SCARA
+    #if MIDDLE_DEAD_ZONE_R > 0
+      const float R2 = HYPOT2(dx - SCARA_OFFSET_X, dy - SCARA_OFFSET_Y);
+      good = (R2 >= sq(float(MIDDLE_DEAD_ZONE_R))) && (R2 <= sq(L1 + L2));
+    #else
+      good = HYPOT2(dx - SCARA_OFFSET_X, dy - SCARA_OFFSET_Y) <= sq(L1 + L2);
+    #endif
+  #elif ENABLED(DELTA)
+    good = HYPOT2(dx, dy) <= sq(DELTA_PRINTABLE_RADIUS);
   #else
-    float dz = RAW_Z_POSITION(target[Z_AXIS]);
-    return  dx >= X_MIN_POS - 0.0001 && dx <= X_MAX_POS + 0.0001
-         && dy >= Y_MIN_POS - 0.0001 && dy <= Y_MAX_POS + 0.0001
-         && dz >= Z_MIN_POS - 0.0001 && dz <= Z_MAX_POS + 0.0001;
+    good = true;
   #endif
+
+  return good && dx >= X_MIN_POS - 0.0001 && dx <= X_MAX_POS + 0.0001
+              && dy >= Y_MIN_POS - 0.0001 && dy <= Y_MAX_POS + 0.0001
+              && dz >= Z_MIN_POS - 0.0001 && dz <= Z_MAX_POS + 0.0001;
 }
 
 /**************************************************
@@ -2448,7 +2556,11 @@ bool position_is_reachable(float target[XYZ]) {
 /**
  * G0, G1: Coordinated movement of X Y Z E axes
  */
-inline void gcode_G0_G1() {
+inline void gcode_G0_G1(
+  #if IS_SCARA
+    bool fast_move=false
+  #endif
+) {
   if (IsRunning()) {
     gcode_get_destination(); // For X Y Z E F
 
@@ -2467,13 +2579,36 @@ inline void gcode_G0_G1() {
 
     #endif //FWRETRACT
 
-    prepare_move_to_destination();
+    #if IS_SCARA
+      fast_move ? prepare_uninterpolated_move_to_destination() : prepare_move_to_destination();
+    #else
+      prepare_move_to_destination();
+    #endif
   }
 }
 
 /**
  * G2: Clockwise Arc
  * G3: Counterclockwise Arc
+ *
+ * This command has two forms: IJ-form and R-form.
+ *
+ *  - I specifies an X offset. J specifies a Y offset.
+ *    At least one of the IJ parameters is required.
+ *    X and Y can be omitted to do a complete circle.
+ *    The given XY is not error-checked. The arc ends
+ *     based on the angle of the destination.
+ *    Mixing I or J with R will throw an error.
+ *
+ *  - R specifies the radius. X or Y is required.
+ *    Omitting both X and Y will throw an error.
+ *    X or Y must differ from the current XY.
+ *    Mixing R with I or J will throw an error.
+ *
+ *  Examples:
+ *
+ *    G2 I10           ; CW circle centered at X+10
+ *    G3 X20 Y12 R14   ; CCW circle with r=14 ending at X20 Y12
  */
 #if ENABLED(ARC_SUPPORT)
   inline void gcode_G2_G3(bool clockwise) {
@@ -2490,16 +2625,38 @@ inline void gcode_G0_G1() {
         relative_mode = relative_mode_backup;
       #endif
 
-      // Center of arc as offset from current_position
-      float arc_offset[2] = {
-        code_seen('I') ? code_value_axis_units(X_AXIS) : 0,
-        code_seen('J') ? code_value_axis_units(Y_AXIS) : 0
-      };
+      float arc_offset[2] = { 0.0, 0.0 };
+      if (code_seen('R')) {
+        const float r = code_value_axis_units(X_AXIS),
+                    x1 = current_position[X_AXIS], y1 = current_position[Y_AXIS],
+                    x2 = destination[X_AXIS], y2 = destination[Y_AXIS];
+        if (r && (x2 != x1 || y2 != y1)) {
+          const float e = clockwise ? -1 : 1,                     // clockwise -1, counterclockwise 1
+                      dx = x2 - x1, dy = y2 - y1,                 // X and Y differences
+                      d = HYPOT(dx, dy),                          // Linear distance between the points
+                      h = sqrt(sq(r) - sq(d * 0.5)),              // Distance to the arc pivot-point
+                      mx = (x1 + x2) * 0.5, my = (y1 + y2) * 0.5, // Point between the two points
+                      sx = -dy / d, sy = dx / d,                  // Slope of the perpendicular bisector
+                      cx = mx + e * h * sx, cy = my + e * h * sy; // Pivot-point of the arc
+          arc_offset[X_AXIS] = cx - x1;
+          arc_offset[Y_AXIS] = cy - y1;
+        }
+      }
+      else {
+        if (code_seen('I')) arc_offset[X_AXIS] = code_value_axis_units(X_AXIS);
+        if (code_seen('J')) arc_offset[Y_AXIS] = code_value_axis_units(Y_AXIS);
+      }
 
-      // Send an arc to the planner
-      plan_arc(destination, arc_offset, clockwise);
-
-      refresh_cmd_timeout();
+      if (arc_offset[0] || arc_offset[1]) {
+        // Send an arc to the planner
+        plan_arc(destination, arc_offset, clockwise);
+        refresh_cmd_timeout();
+      }
+      else {
+        // Bad arguments
+        SERIAL_ERROR_START;
+        SERIAL_ERRORLNPGM(MSG_ERR_ARC_ARGS);
+      }
     }
   }
 #endif
@@ -2679,11 +2836,17 @@ inline void gcode_G4() {
         SERIAL_ECHOPGM(" (Right");
       #elif (X_PROBE_OFFSET_FROM_EXTRUDER < 0)
         SERIAL_ECHOPGM(" (Left");
+      #elif (Y_PROBE_OFFSET_FROM_EXTRUDER != 0)
+        SERIAL_ECHOPGM(" (Middle");
+      #else
+        SERIAL_ECHOPGM(" (Aligned With");
       #endif
       #if (Y_PROBE_OFFSET_FROM_EXTRUDER > 0)
         SERIAL_ECHOPGM("-Back");
       #elif (Y_PROBE_OFFSET_FROM_EXTRUDER < 0)
         SERIAL_ECHOPGM("-Front");
+      #elif (X_PROBE_OFFSET_FROM_EXTRUDER != 0)
+        SERIAL_ECHOPGM("-Center");
       #endif
       if (zprobe_zoffset < 0)
         SERIAL_ECHOPGM(" & Below");
@@ -2710,8 +2873,7 @@ inline void gcode_G4() {
 
     // Move all carriages together linearly until an endstop is hit.
     current_position[X_AXIS] = current_position[Y_AXIS] = current_position[Z_AXIS] = (Z_MAX_LENGTH + 10);
-    feedrate_mm_s = homing_feedrate_mm_s[X_AXIS];
-    line_to_current_position();
+    planner.buffer_line(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS], homing_feedrate_mm_s[X_AXIS], active_extruder);
     stepper.synchronize();
     endstops.hit_on_purpose(); // clear endstop hit flags
 
@@ -3296,8 +3458,8 @@ inline void gcode_G28() {
       return;
     }
 
-    bool dryrun = code_seen('D');
-    bool stow_probe_after_each = code_seen('E');
+    bool dryrun = code_seen('D'),
+         stow_probe_after_each = code_seen('E');
 
     #if ENABLED(AUTO_BED_LEVELING_GRID)
 
@@ -3310,11 +3472,12 @@ inline void gcode_G28() {
         if (dryrun) SERIAL_PROTOCOLLNPGM("Running in DRY-RUN mode");
       }
 
-      int auto_bed_leveling_grid_points = AUTO_BED_LEVELING_GRID_POINTS;
+      int abl_grid_points_x = ABL_GRID_POINTS_X,
+          abl_grid_points_y = ABL_GRID_POINTS_Y;
 
       #if ENABLED(AUTO_BED_LEVELING_LINEAR)
-        if (code_seen('P')) auto_bed_leveling_grid_points = code_value_int();
-        if (auto_bed_leveling_grid_points < 2) {
+        if (code_seen('P')) abl_grid_points_x = abl_grid_points_y = code_value_int();
+        if (abl_grid_points_x < 2) {
           SERIAL_PROTOCOLLNPGM("?Number of probed (P)oints is implausible (2 minimum).");
           return;
         }
@@ -3370,23 +3533,10 @@ inline void gcode_G28() {
       // Re-orient the current position without leveling
       // based on where the steppers are positioned.
       //
-      #if IS_KINEMATIC
-
-        // For DELTA/SCARA we need to apply forward kinematics.
-        // This returns raw positions and we remap to the space.
-        get_cartesian_from_steppers();
-        LOOP_XYZ(i) current_position[i] = LOGICAL_POSITION(cartes[i], i);
-
-      #else
-
-        // For cartesian/core the steppers are already mapped to
-        // the coordinate space by design.
-        LOOP_XYZ(i) current_position[i] = stepper.get_axis_position_mm((AxisEnum)i);
-
-      #endif // !DELTA
+      get_cartesian_from_steppers();
+      memcpy(current_position, cartes, sizeof(cartes));
 
       // Inform the planner about the new coordinates
-      // (This is probably not needed here)
       SYNC_PLAN_POSITION_KINEMATIC();
     }
 
@@ -3395,15 +3545,13 @@ inline void gcode_G28() {
     // Deploy the probe. Probe will raise if needed.
     if (DEPLOY_PROBE()) return;
 
-    bed_leveling_in_progress = true;
-
     float xProbe, yProbe, measured_z = 0;
 
     #if ENABLED(AUTO_BED_LEVELING_GRID)
 
       // probe at the points of a lattice grid
-      const float xGridSpacing = (right_probe_bed_position - left_probe_bed_position) / (auto_bed_leveling_grid_points - 1),
-                  yGridSpacing = (back_probe_bed_position - front_probe_bed_position) / (auto_bed_leveling_grid_points - 1);
+      const float xGridSpacing = (right_probe_bed_position - left_probe_bed_position) / (abl_grid_points_x - 1),
+                  yGridSpacing = (back_probe_bed_position - front_probe_bed_position) / (abl_grid_points_y - 1);
 
       #if ENABLED(AUTO_BED_LEVELING_NONLINEAR)
 
@@ -3412,7 +3560,7 @@ inline void gcode_G28() {
         float zoffset = zprobe_zoffset;
         if (code_seen('Z')) zoffset += code_value_axis_units(Z_AXIS);
 
-      #elif ENABLED(AUTO_BED_LEVELING_LINEAR)
+      #elif ENABLED(AUTO_BED_LEVELING_LINEAR_GRID)
 
         /**
          * solve the plane equation ax + by + d = z
@@ -3423,30 +3571,31 @@ inline void gcode_G28() {
          * so Vx = -a Vy = -b Vz = 1 (we want the vector facing towards positive Z
          */
 
-        int abl2 = sq(auto_bed_leveling_grid_points);
+        int abl2 = abl_grid_points_x * abl_grid_points_y;
 
         double eqnAMatrix[abl2 * 3], // "A" matrix of the linear system of equations
                eqnBVector[abl2],     // "B" vector of Z points
                mean = 0.0;
-        int8_t indexIntoAB[auto_bed_leveling_grid_points][auto_bed_leveling_grid_points];
+        int indexIntoAB[abl_grid_points_x][abl_grid_points_y];
 
-      #endif // AUTO_BED_LEVELING_LINEAR
+      #endif // AUTO_BED_LEVELING_LINEAR_GRID
 
       int probePointCounter = 0;
-      bool zig = auto_bed_leveling_grid_points & 1; //always end at [RIGHT_PROBE_BED_POSITION, BACK_PROBE_BED_POSITION]
+      bool zig = abl_grid_points_y & 1; //always end at [RIGHT_PROBE_BED_POSITION, BACK_PROBE_BED_POSITION]
 
-      for (uint8_t yCount = 0; yCount < auto_bed_leveling_grid_points; yCount++) {
+      for (uint8_t yCount = 0; yCount < abl_grid_points_y; yCount++) {
         float yBase = front_probe_bed_position + yGridSpacing * yCount;
         yProbe = floor(yBase + (yBase < 0 ? 0 : 0.5));
+
         int8_t xStart, xStop, xInc;
 
         if (zig) {
           xStart = 0;
-          xStop = auto_bed_leveling_grid_points;
+          xStop = abl_grid_points_x;
           xInc = 1;
         }
         else {
-          xStart = auto_bed_leveling_grid_points - 1;
+          xStart = abl_grid_points_x - 1;
           xStop = -1;
           xInc = -1;
         }
@@ -3459,12 +3608,13 @@ inline void gcode_G28() {
 
           #if ENABLED(DELTA)
             // Avoid probing outside the round or hexagonal area of a delta printer
-            if (HYPOT2(xProbe, yProbe) > sq(DELTA_PROBEABLE_RADIUS) + 0.1) continue;
+            float pos[XYZ] = { xProbe + X_PROBE_OFFSET_FROM_EXTRUDER, yProbe + Y_PROBE_OFFSET_FROM_EXTRUDER, 0 };
+            if (!position_is_reachable(pos)) continue;
           #endif
 
-          float measured_z = probe_pt(xProbe, yProbe, stow_probe_after_each, verbose_level);
+          measured_z = probe_pt(xProbe, yProbe, stow_probe_after_each, verbose_level);
 
-          #if ENABLED(AUTO_BED_LEVELING_LINEAR)
+          #if ENABLED(AUTO_BED_LEVELING_LINEAR_GRID)
 
             mean += measured_z;
             eqnBVector[probePointCounter] = measured_z;
@@ -3534,7 +3684,9 @@ inline void gcode_G28() {
       if (!dryrun) extrapolate_unprobed_bed_level();
       print_bed_level();
 
-    #elif ENABLED(AUTO_BED_LEVELING_LINEAR)
+    #elif ENABLED(AUTO_BED_LEVELING_LINEAR_GRID)
+
+      // For LINEAR leveling calculate matrix, print reports, correct the position
 
       // solve lsq problem
       double plane_equation_coefficients[3];
@@ -3581,8 +3733,8 @@ inline void gcode_G28() {
 
         float min_diff = 999;
 
-        for (int8_t yy = auto_bed_leveling_grid_points - 1; yy >= 0; yy--) {
-          for (uint8_t xx = 0; xx < auto_bed_leveling_grid_points; xx++) {
+        for (int8_t yy = abl_grid_points_y - 1; yy >= 0; yy--) {
+          for (uint8_t xx = 0; xx < abl_grid_points_x; xx++) {
             int ind = indexIntoAB[xx][yy];
             float diff = eqnBVector[ind] - mean,
                   x_tmp = eqnAMatrix[ind + 0 * abl2],
@@ -3606,8 +3758,8 @@ inline void gcode_G28() {
         if (verbose_level > 3) {
           SERIAL_PROTOCOLLNPGM("\nCorrected Bed Height vs. Bed Topology:");
 
-          for (int yy = auto_bed_leveling_grid_points - 1; yy >= 0; yy--) {
-            for (int xx = 0; xx < auto_bed_leveling_grid_points; xx++) {
+          for (int8_t yy = abl_grid_points_y - 1; yy >= 0; yy--) {
+            for (uint8_t xx = 0; xx < abl_grid_points_x; xx++) {
               int ind = indexIntoAB[xx][yy];
               float x_tmp = eqnAMatrix[ind + 0 * abl2],
                     y_tmp = eqnAMatrix[ind + 1 * abl2],
@@ -3628,6 +3780,12 @@ inline void gcode_G28() {
           SERIAL_EOL;
         }
       } //do_topography_map
+
+    #endif // AUTO_BED_LEVELING_LINEAR_GRID
+
+    #if ENABLED(AUTO_BED_LEVELING_LINEAR)
+
+      // For LINEAR and 3POINT leveling correct the current position
 
       if (verbose_level > 0)
         planner.bed_level_matrix.debug("\n\nBed Level Correction Matrix:");
@@ -3698,8 +3856,6 @@ inline void gcode_G28() {
       if (DEBUGGING(LEVELING)) SERIAL_ECHOLNPGM("<<< gcode_G29");
     #endif
 
-    bed_leveling_in_progress = false;
-
     report_current_position();
 
     KEEPALIVE_STATE(IN_HANDLER);
@@ -3758,23 +3914,28 @@ inline void gcode_G28() {
  * G92: Set current position to given X Y Z E
  */
 inline void gcode_G92() {
-  bool didE = code_seen('E');
+  bool didXYZ = false,
+       didE = code_seen('E');
 
   if (!didE) stepper.synchronize();
 
-  bool didXYZ = false;
   LOOP_XYZE(i) {
     if (code_seen(axis_codes[i])) {
-      float p = current_position[i],
-            v = code_value_axis_units(i);
+      #if IS_SCARA
+        current_position[i] = code_value_axis_units(i);
+        if (i != E_AXIS) didXYZ = true;
+      #else
+        float p = current_position[i],
+              v = code_value_axis_units(i);
 
-      current_position[i] = v;
+        current_position[i] = v;
 
-      if (i != E_AXIS) {
-        position_shift[i] += v - p; // Offset the coordinate space
-        update_software_endstops((AxisEnum)i);
-        didXYZ = true;
-      }
+        if (i != E_AXIS) {
+          didXYZ = true;
+          position_shift[i] += v - p; // Offset the coordinate space
+          update_software_endstops((AxisEnum)i);
+        }
+      #endif
     }
   }
   if (didXYZ)
@@ -4122,7 +4283,8 @@ inline void gcode_M42() {
         return;
       }
     #else
-      if (HYPOT(RAW_X_POSITION(X_probe_location), RAW_Y_POSITION(Y_probe_location)) > DELTA_PROBEABLE_RADIUS) {
+      float pos[XYZ] = { X_probe_location, Y_probe_location, 0 };
+      if (!position_is_reachable(pos)) {
         SERIAL_PROTOCOLLNPGM("? (X,Y) location outside of probeable radius.");
         return;
       }
@@ -4147,7 +4309,7 @@ inline void gcode_M42() {
     if (verbose_level > 2)
       SERIAL_PROTOCOLLNPGM("Positioning the probe...");
 
-    // we don't do bed level correction in M48 because we want the raw data when we probe
+    // Disable bed level correction in M48 because we want the raw data when we probe
     #if ENABLED(AUTO_BED_LEVELING_FEATURE)
       reset_bed_level();
     #endif
@@ -5037,23 +5199,9 @@ static void report_current_position() {
   stepper.report_positions();
 
   #if IS_SCARA
-    SERIAL_PROTOCOLPGM("SCARA Theta:");
-    SERIAL_PROTOCOL(delta[X_AXIS]);
-    SERIAL_PROTOCOLPGM("   Psi+Theta:");
-    SERIAL_PROTOCOL(delta[Y_AXIS]);
+    SERIAL_PROTOCOLPAIR("SCARA Theta:", stepper.get_axis_position_mm(A_AXIS));
+    SERIAL_PROTOCOLLNPAIR("   Psi+Theta:", stepper.get_axis_position_mm(B_AXIS));
     SERIAL_EOL;
-
-    SERIAL_PROTOCOLPGM("SCARA Cal - Theta:");
-    SERIAL_PROTOCOL(delta[X_AXIS]);
-    SERIAL_PROTOCOLPGM("   Psi+Theta (90):");
-    SERIAL_PROTOCOL(delta[Y_AXIS] - delta[X_AXIS] - 90);
-    SERIAL_EOL;
-
-    SERIAL_PROTOCOLPGM("SCARA step Cal - Theta:");
-    SERIAL_PROTOCOL(delta[X_AXIS] / 90 * planner.axis_steps_per_mm[X_AXIS]);
-    SERIAL_PROTOCOLPGM("   Psi+Theta:");
-    SERIAL_PROTOCOL((delta[Y_AXIS] - delta[X_AXIS]) / 90 * planner.axis_steps_per_mm[Y_AXIS]);
-    SERIAL_EOL; SERIAL_EOL;
   #endif
 }
 
@@ -5274,9 +5422,9 @@ inline void gcode_M206() {
     if (code_seen(axis_codes[i]))
       set_home_offset((AxisEnum)i, code_value_axis_units(i));
 
-  #if IS_SCARA
-    if (code_seen('T')) set_home_offset(X_AXIS, code_value_axis_units(X_AXIS)); // Theta
-    if (code_seen('P')) set_home_offset(Y_AXIS, code_value_axis_units(Y_AXIS)); // Psi
+  #if ENABLED(MORGAN_SCARA)
+    if (code_seen('T')) set_home_offset(A_AXIS, code_value_axis_units(A_AXIS)); // Theta
+    if (code_seen('P')) set_home_offset(B_AXIS, code_value_axis_units(B_AXIS)); // Psi
   #endif
 
   SYNC_PLAN_POSITION_KINEMATIC();
@@ -5744,17 +5892,14 @@ inline void gcode_M303() {
 }
 
 #if ENABLED(MORGAN_SCARA)
+
   bool SCARA_move_to_cal(uint8_t delta_a, uint8_t delta_b) {
-    //SoftEndsEnabled = false;              // Ignore soft endstops during calibration
-    //SERIAL_ECHOLNPGM(" Soft endstops disabled");
     if (IsRunning()) {
-      //gcode_get_destination(); // For X Y Z E F
       forward_kinematics_SCARA(delta_a, delta_b);
-      destination[X_AXIS] = cartes[X_AXIS] / axis_scaling[X_AXIS];
-      destination[Y_AXIS] = cartes[Y_AXIS] / axis_scaling[Y_AXIS];
+      destination[X_AXIS] = LOGICAL_X_POSITION(cartes[X_AXIS]);
+      destination[Y_AXIS] = LOGICAL_Y_POSITION(cartes[Y_AXIS]);
       destination[Z_AXIS] = current_position[Z_AXIS];
       prepare_move_to_destination();
-      //ok_to_send();
       return true;
     }
     return false;
@@ -5798,15 +5943,6 @@ inline void gcode_M303() {
   inline bool gcode_M364() {
     SERIAL_ECHOLNPGM(" Cal: Theta-Psi 90");
     return SCARA_move_to_cal(45, 135);
-  }
-
-  /**
-   * M365: SCARA calibration: Scaling factor, X, Y, Z axis
-   */
-  inline void gcode_M365() {
-    LOOP_XYZ(i)
-      if (code_seen(axis_codes[i]))
-        axis_scaling[i] = code_value_float();
   }
 
 #endif // SCARA
@@ -5950,7 +6086,7 @@ void quickstop_stepper() {
   /**
    * M420: Enable/Disable Mesh Bed Leveling
    */
-  inline void gcode_M420() { if (code_seen('S') && code_has_value()) mbl.set_has_mesh(code_value_bool()); }
+  inline void gcode_M420() { if (code_seen('S')) mbl.set_has_mesh(code_value_bool()); }
 
   /**
    * M421: Set a single Mesh Bed Leveling Z coordinate
@@ -6134,7 +6270,7 @@ inline void gcode_M503() {
     // Define runplan for move axes
     #if IS_KINEMATIC
       #define RUNPLAN(RATE_MM_S) inverse_kinematics(destination); \
-                                 planner.buffer_line(delta[X_AXIS], delta[Y_AXIS], delta[Z_AXIS], destination[E_AXIS], RATE_MM_S, active_extruder);
+                                 planner.buffer_line(delta[A_AXIS], delta[B_AXIS], delta[C_AXIS], destination[E_AXIS], RATE_MM_S, active_extruder);
     #else
       #define RUNPLAN(RATE_MM_S) line_to_destination(RATE_MM_S);
     #endif
@@ -6256,8 +6392,8 @@ inline void gcode_M503() {
     #if IS_KINEMATIC
       // Move XYZ to starting position, then E
       inverse_kinematics(lastpos);
-      planner.buffer_line(delta[X_AXIS], delta[Y_AXIS], delta[Z_AXIS], destination[E_AXIS], FILAMENT_CHANGE_XY_FEEDRATE, active_extruder);
-      planner.buffer_line(delta[X_AXIS], delta[Y_AXIS], delta[Z_AXIS], lastpos[E_AXIS], FILAMENT_CHANGE_XY_FEEDRATE, active_extruder);
+      planner.buffer_line(delta[A_AXIS], delta[B_AXIS], delta[C_AXIS], destination[E_AXIS], FILAMENT_CHANGE_XY_FEEDRATE, active_extruder);
+      planner.buffer_line(delta[A_AXIS], delta[B_AXIS], delta[C_AXIS], lastpos[E_AXIS], FILAMENT_CHANGE_XY_FEEDRATE, active_extruder);
     #else
       // Move XY to starting position, then Z, then E
       destination[X_AXIS] = lastpos[X_AXIS];
@@ -6728,7 +6864,7 @@ void tool_change(const uint8_t tmp_extruder, const float fr_mm_s/*=0.0*/, bool n
             float xydiff[2] = { offset_vec.x, offset_vec.y };
             current_position[Z_AXIS] += offset_vec.z;
 
-          #else // !AUTO_BED_LEVELING_FEATURE
+          #else // !AUTO_BED_LEVELING_LINEAR
 
             float xydiff[2] = {
               hotend_offset[X_AXIS][tmp_extruder] - hotend_offset[X_AXIS][active_extruder],
@@ -6915,7 +7051,11 @@ void process_next_command() {
       // G0, G1
       case 0:
       case 1:
-        gcode_G0_G1();
+        #if IS_SCARA
+          gcode_G0_G1(codenum == 0);
+        #else
+          gcode_G0_G1();
+        #endif
         break;
 
       // G2, G3
@@ -7010,7 +7150,7 @@ void process_next_command() {
     break;
 
     case 'M': switch (codenum) {
-      #if ENABLED(ULTIPANEL)
+      #if ENABLED(ULTIPANEL) || ENABLED(EMERGENCY_PARSER)
         case 0: // M0 - Unconditional stop - Wait for user button press on LCD
         case 1: // M1 - Conditional stop - Wait for user button press on LCD
           gcode_M0_M1();
@@ -7407,9 +7547,6 @@ void process_next_command() {
         case 364:  // M364 SCARA Psi pos3 (90 deg to Theta)
           if (gcode_M364()) return;
           break;
-        case 365: // M365 Set SCARA scaling for X Y Z
-          gcode_M365();
-          break;
       #endif // SCARA
 
       case 400: // M400 finish all moves
@@ -7614,6 +7751,48 @@ void ok_to_send() {
 
 #endif
 
+#if ENABLED(AUTO_BED_LEVELING_NONLINEAR)
+
+  // Get the Z adjustment for non-linear bed leveling
+  float nonlinear_z_offset(float cartesian[XYZ]) {
+    if (nonlinear_grid_spacing[X_AXIS] == 0 || nonlinear_grid_spacing[Y_AXIS] == 0) return 0; // G29 not done!
+
+    int half_x = (ABL_GRID_POINTS_X - 1) / 2,
+        half_y = (ABL_GRID_POINTS_Y - 1) / 2;
+    float hx2 = half_x - 0.001, hx1 = -hx2,
+          hy2 = half_y - 0.001, hy1 = -hy2,
+          grid_x = max(hx1, min(hx2, RAW_X_POSITION(cartesian[X_AXIS]) / nonlinear_grid_spacing[X_AXIS])),
+          grid_y = max(hy1, min(hy2, RAW_Y_POSITION(cartesian[Y_AXIS]) / nonlinear_grid_spacing[Y_AXIS]));
+    int   floor_x = floor(grid_x), floor_y = floor(grid_y);
+    float ratio_x = grid_x - floor_x, ratio_y = grid_y - floor_y,
+          z1 = bed_level_grid[floor_x + half_x][floor_y + half_y],
+          z2 = bed_level_grid[floor_x + half_x][floor_y + half_y + 1],
+          z3 = bed_level_grid[floor_x + half_x + 1][floor_y + half_y],
+          z4 = bed_level_grid[floor_x + half_x + 1][floor_y + half_y + 1],
+          left = (1 - ratio_y) * z1 + ratio_y * z2,
+          right = (1 - ratio_y) * z3 + ratio_y * z4;
+
+    /*
+      SERIAL_ECHOPAIR("grid_x=", grid_x);
+      SERIAL_ECHOPAIR(" grid_y=", grid_y);
+      SERIAL_ECHOPAIR(" floor_x=", floor_x);
+      SERIAL_ECHOPAIR(" floor_y=", floor_y);
+      SERIAL_ECHOPAIR(" ratio_x=", ratio_x);
+      SERIAL_ECHOPAIR(" ratio_y=", ratio_y);
+      SERIAL_ECHOPAIR(" z1=", z1);
+      SERIAL_ECHOPAIR(" z2=", z2);
+      SERIAL_ECHOPAIR(" z3=", z3);
+      SERIAL_ECHOPAIR(" z4=", z4);
+      SERIAL_ECHOPAIR(" left=", left);
+      SERIAL_ECHOPAIR(" right=", right);
+      SERIAL_ECHOPAIR(" offset=", (1 - ratio_x) * left + ratio_x * right);
+    //*/
+
+    return (1 - ratio_x) * left + ratio_x * right;
+  }
+
+#endif // AUTO_BED_LEVELING_NONLINEAR
+
 #if ENABLED(DELTA)
 
   /**
@@ -7677,34 +7856,38 @@ void ok_to_send() {
    * - Use a fast-inverse-sqrt function and add the reciprocal.
    *   (see above)
    */
+
+  // Macro to obtain the Z position of an individual tower
+  #define DELTA_Z(T) raw[Z_AXIS] + _SQRT(    \
+    delta_diagonal_rod_2_tower_##T - HYPOT2( \
+        delta_tower##T##_x - raw[X_AXIS],    \
+        delta_tower##T##_y - raw[Y_AXIS]     \
+      )                                      \
+    )
+
+  #define DELTA_LOGICAL_IK() do {      \
+    const float raw[XYZ] = {           \
+      RAW_X_POSITION(logical[X_AXIS]), \
+      RAW_Y_POSITION(logical[Y_AXIS]), \
+      RAW_Z_POSITION(logical[Z_AXIS])  \
+    };                                 \
+    delta[A_AXIS] = DELTA_Z(1);        \
+    delta[B_AXIS] = DELTA_Z(2);        \
+    delta[C_AXIS] = DELTA_Z(3);        \
+  } while(0)
+
+  #define DELTA_DEBUG() do { \
+      SERIAL_ECHOPAIR("cartesian X:", raw[X_AXIS]); \
+      SERIAL_ECHOPAIR(" Y:", raw[Y_AXIS]);          \
+      SERIAL_ECHOLNPAIR(" Z:", raw[Z_AXIS]);        \
+      SERIAL_ECHOPAIR("delta A:", delta[A_AXIS]);   \
+      SERIAL_ECHOPAIR(" B:", delta[B_AXIS]);        \
+      SERIAL_ECHOLNPAIR(" C:", delta[C_AXIS]);      \
+    } while(0)
+
   void inverse_kinematics(const float logical[XYZ]) {
-
-    const float cartesian[XYZ] = {
-      RAW_X_POSITION(logical[X_AXIS]),
-      RAW_Y_POSITION(logical[Y_AXIS]),
-      RAW_Z_POSITION(logical[Z_AXIS])
-    };
-
-    // Macro to obtain the Z position of an individual tower
-    #define DELTA_Z(T) cartesian[Z_AXIS] + _SQRT( \
-      delta_diagonal_rod_2_tower_##T - HYPOT2(    \
-          delta_tower##T##_x - cartesian[X_AXIS], \
-          delta_tower##T##_y - cartesian[Y_AXIS]  \
-        )                                         \
-      )
-
-    delta[A_AXIS] = DELTA_Z(1);
-    delta[B_AXIS] = DELTA_Z(2);
-    delta[C_AXIS] = DELTA_Z(3);
-
-    /*
-      SERIAL_ECHOPAIR("cartesian X:", cartesian[X_AXIS]);
-      SERIAL_ECHOPAIR(" Y:", cartesian[Y_AXIS]);
-      SERIAL_ECHOLNPAIR(" Z:", cartesian[Z_AXIS]);
-      SERIAL_ECHOPAIR("delta A:", delta[A_AXIS]);
-      SERIAL_ECHOPAIR(" B:", delta[B_AXIS]);
-      SERIAL_ECHOLNPAIR(" C:", delta[C_AXIS]);
-    //*/
+    DELTA_LOGICAL_IK();
+    // DELTA_DEBUG();
   }
 
   /**
@@ -7804,48 +7987,6 @@ void ok_to_send() {
     forward_kinematics_DELTA(point[A_AXIS], point[B_AXIS], point[C_AXIS]);
   }
 
-  #if ENABLED(AUTO_BED_LEVELING_NONLINEAR)
-
-    // Adjust print surface height by linear interpolation over the bed_level array.
-    void adjust_delta(float cartesian[XYZ]) {
-      if (nonlinear_grid_spacing[X_AXIS] == 0 || nonlinear_grid_spacing[Y_AXIS] == 0) return; // G29 not done!
-
-      int half = (AUTO_BED_LEVELING_GRID_POINTS - 1) / 2;
-      float h1 = 0.001 - half, h2 = half - 0.001,
-            grid_x = max(h1, min(h2, RAW_X_POSITION(cartesian[X_AXIS]) / nonlinear_grid_spacing[X_AXIS])),
-            grid_y = max(h1, min(h2, RAW_Y_POSITION(cartesian[Y_AXIS]) / nonlinear_grid_spacing[Y_AXIS]));
-      int floor_x = floor(grid_x), floor_y = floor(grid_y);
-      float ratio_x = grid_x - floor_x, ratio_y = grid_y - floor_y,
-            z1 = bed_level_grid[floor_x + half][floor_y + half],
-            z2 = bed_level_grid[floor_x + half][floor_y + half + 1],
-            z3 = bed_level_grid[floor_x + half + 1][floor_y + half],
-            z4 = bed_level_grid[floor_x + half + 1][floor_y + half + 1],
-            left = (1 - ratio_y) * z1 + ratio_y * z2,
-            right = (1 - ratio_y) * z3 + ratio_y * z4,
-            offset = (1 - ratio_x) * left + ratio_x * right;
-
-      delta[X_AXIS] += offset;
-      delta[Y_AXIS] += offset;
-      delta[Z_AXIS] += offset;
-
-      /**
-      SERIAL_ECHOPAIR("grid_x=", grid_x);
-      SERIAL_ECHOPAIR(" grid_y=", grid_y);
-      SERIAL_ECHOPAIR(" floor_x=", floor_x);
-      SERIAL_ECHOPAIR(" floor_y=", floor_y);
-      SERIAL_ECHOPAIR(" ratio_x=", ratio_x);
-      SERIAL_ECHOPAIR(" ratio_y=", ratio_y);
-      SERIAL_ECHOPAIR(" z1=", z1);
-      SERIAL_ECHOPAIR(" z2=", z2);
-      SERIAL_ECHOPAIR(" z3=", z3);
-      SERIAL_ECHOPAIR(" z4=", z4);
-      SERIAL_ECHOPAIR(" left=", left);
-      SERIAL_ECHOPAIR(" right=", right);
-      SERIAL_ECHOLNPAIR(" offset=", offset);
-      */
-    }
-  #endif // AUTO_BED_LEVELING_NONLINEAR
-
 #endif // DELTA
 
 /**
@@ -7864,11 +8005,16 @@ void get_cartesian_from_steppers() {
       stepper.get_axis_position_mm(B_AXIS),
       stepper.get_axis_position_mm(C_AXIS)
     );
+    cartes[X_AXIS] += LOGICAL_X_POSITION(0);
+    cartes[Y_AXIS] += LOGICAL_Y_POSITION(0);
+    cartes[Z_AXIS] += LOGICAL_Z_POSITION(0);
   #elif IS_SCARA
     forward_kinematics_SCARA(
       stepper.get_axis_position_degrees(A_AXIS),
       stepper.get_axis_position_degrees(B_AXIS)
     );
+    cartes[X_AXIS] += LOGICAL_X_POSITION(0);
+    cartes[Y_AXIS] += LOGICAL_Y_POSITION(0);
     cartes[Z_AXIS] = stepper.get_axis_position_mm(Z_AXIS);
   #else
     cartes[X_AXIS] = stepper.get_axis_position_mm(X_AXIS);
@@ -7884,7 +8030,7 @@ void get_cartesian_from_steppers() {
  *
  * << INCOMPLETE! Still needs to unapply leveling! >>
  */
-void set_current_from_steppers_for_axis(AxisEnum axis) {
+void set_current_from_steppers_for_axis(const AxisEnum axis) {
   #if ENABLED(AUTO_BED_LEVELING_LINEAR)
     vector_3 pos = untilted_stepper_position();
     current_position[axis] = axis == X_AXIS ? pos.x : axis == Y_AXIS ? pos.y : pos.z;
@@ -7957,7 +8103,7 @@ void set_current_from_steppers_for_axis(AxisEnum axis) {
     mesh_line_to_destination(fr_mm_s, x_splits, y_splits);
   }
 
-#endif  // MESH_BED_LEVELING
+#endif // MESH_BED_LEVELING
 
 #if IS_KINEMATIC
 
@@ -7967,40 +8113,135 @@ void set_current_from_steppers_for_axis(AxisEnum axis) {
    * This calls planner.buffer_line several times, adding
    * small incremental moves for DELTA or SCARA.
    */
-  inline bool prepare_kinematic_move_to(float target[NUM_AXIS]) {
+  inline bool prepare_kinematic_move_to(float logical[NUM_AXIS]) {
+
+    // Get the top feedrate of the move in the XY plane
+    float _feedrate_mm_s = MMS_SCALED(feedrate_mm_s);
+
+    // If the move is only in Z don't split up the move.
+    // This shortcut cannot be used if planar bed leveling
+    // is in use, but is fine with mesh-based bed leveling
+    if (logical[X_AXIS] == current_position[X_AXIS] && logical[Y_AXIS] == current_position[Y_AXIS]) {
+      inverse_kinematics(logical);
+      planner.buffer_line(delta[A_AXIS], delta[B_AXIS], delta[C_AXIS], logical[E_AXIS], _feedrate_mm_s, active_extruder);
+      return true;
+    }
+
+    // Get the distance moved in XYZ
     float difference[NUM_AXIS];
-    LOOP_XYZE(i) difference[i] = target[i] - current_position[i];
+    LOOP_XYZE(i) difference[i] = logical[i] - current_position[i];
 
     float cartesian_mm = sqrt(sq(difference[X_AXIS]) + sq(difference[Y_AXIS]) + sq(difference[Z_AXIS]));
     if (UNEAR_ZERO(cartesian_mm)) cartesian_mm = abs(difference[E_AXIS]);
     if (UNEAR_ZERO(cartesian_mm)) return false;
-    float _feedrate_mm_s = MMS_SCALED(feedrate_mm_s);
+
+    // Minimum number of seconds to move the given distance
     float seconds = cartesian_mm / _feedrate_mm_s;
-    int steps = max(1, int(delta_segments_per_second * seconds));
-    float inv_steps = 1.0/steps;
+
+    // The number of segments-per-second times the duration
+    // gives the number of segments we should produce
+    uint16_t segments = delta_segments_per_second * seconds;
+
+    #if IS_SCARA
+      NOMORE(segments, cartesian_mm * 2);
+    #endif
+
+    NOLESS(segments, 1);
+
+    // Each segment produces this much of the move
+    float inv_segments = 1.0 / segments,
+          segment_distance[XYZE] = {
+            difference[X_AXIS] * inv_segments,
+            difference[Y_AXIS] * inv_segments,
+            difference[Z_AXIS] * inv_segments,
+            difference[E_AXIS] * inv_segments
+          };
 
     // SERIAL_ECHOPAIR("mm=", cartesian_mm);
     // SERIAL_ECHOPAIR(" seconds=", seconds);
-    // SERIAL_ECHOLNPAIR(" steps=", steps);
+    // SERIAL_ECHOLNPAIR(" segments=", segments);
 
-    for (int s = 1; s <= steps; s++) {
+    // Send all the segments to the planner
 
-      float fraction = float(s) * inv_steps;
+    #if ENABLED(DELTA) && ENABLED(USE_RAW_KINEMATICS)
 
-      LOOP_XYZE(i)
-        target[i] = current_position[i] + difference[i] * fraction;
+      #define DELTA_E raw[E_AXIS]
+      #define DELTA_NEXT(ADDEND) LOOP_XYZE(i) raw[i] += ADDEND;
+      #define DELTA_IK() do {       \
+        delta[A_AXIS] = DELTA_Z(1); \
+        delta[B_AXIS] = DELTA_Z(2); \
+        delta[C_AXIS] = DELTA_Z(3); \
+      } while(0)
 
-      inverse_kinematics(target);
+      // Get the raw current position as starting point
+      float raw[ABC] = {
+        RAW_CURRENT_POSITION(X_AXIS),
+        RAW_CURRENT_POSITION(Y_AXIS),
+        RAW_CURRENT_POSITION(Z_AXIS)
+      };
 
-      #if ENABLED(DELTA) && ENABLED(AUTO_BED_LEVELING_NONLINEAR)
-        if (!bed_leveling_in_progress) adjust_delta(target);
+    #else
+
+      #define DELTA_E logical[E_AXIS]
+      #define DELTA_NEXT(ADDEND) LOOP_XYZE(i) logical[i] += ADDEND;
+
+      #if ENABLED(DELTA)
+        #define DELTA_IK() DELTA_LOGICAL_IK()
+      #else
+        #define DELTA_IK() inverse_kinematics(logical)
       #endif
 
-      //DEBUG_POS("prepare_kinematic_move_to", target);
-      //DEBUG_POS("prepare_kinematic_move_to", delta);
+      // Get the logical current position as starting point
+      LOOP_XYZE(i) logical[i] = current_position[i];
 
-      planner.buffer_line(delta[X_AXIS], delta[Y_AXIS], delta[Z_AXIS], target[E_AXIS], _feedrate_mm_s, active_extruder);
-    }
+    #endif
+
+    #if ENABLED(USE_DELTA_IK_INTERPOLATION)
+
+      // Get the starting delta for interpolation
+      if (segments >= 2) inverse_kinematics(logical);
+
+      for (uint16_t s = segments + 1; --s;) {
+        if (s > 1) {
+          // Save the previous delta for interpolation
+          float prev_delta[ABC] = { delta[A_AXIS], delta[B_AXIS], delta[C_AXIS] };
+
+          // Get the delta 2 segments ahead (rather than the next)
+          DELTA_NEXT(segment_distance[i] + segment_distance[i]);
+          DELTA_IK();
+
+          // Move to the interpolated delta position first
+          planner.buffer_line(
+            (prev_delta[A_AXIS] + delta[A_AXIS]) * 0.5,
+            (prev_delta[B_AXIS] + delta[B_AXIS]) * 0.5,
+            (prev_delta[C_AXIS] + delta[C_AXIS]) * 0.5,
+            logical[E_AXIS], _feedrate_mm_s, active_extruder
+          );
+
+          // Do an extra decrement of the loop
+          --s;
+        }
+        else {
+          // Get the last segment delta (only when segments is odd)
+          DELTA_NEXT(segment_distance[i])
+          DELTA_IK();
+        }
+
+        // Move to the non-interpolated position
+        planner.buffer_line(delta[A_AXIS], delta[B_AXIS], delta[C_AXIS], DELTA_E, _feedrate_mm_s, active_extruder);
+      }
+
+    #else
+
+      // For non-interpolated delta calculate every segment
+      for (uint16_t s = segments + 1; --s;) {
+        DELTA_NEXT(segment_distance[i])
+        DELTA_IK();
+        planner.buffer_line(delta[A_AXIS], delta[B_AXIS], delta[C_AXIS], logical[E_AXIS], _feedrate_mm_s, active_extruder);
+      }
+
+    #endif
+
     return true;
   }
 
@@ -8131,20 +8372,20 @@ void prepare_move_to_destination() {
    * options for G2/G3 arc generation. In future these options may be GCode tunable.
    */
   void plan_arc(
-    float target[NUM_AXIS], // Destination position
-    float* offset,          // Center of rotation relative to current_position
-    uint8_t clockwise       // Clockwise?
+    float logical[NUM_AXIS], // Destination position
+    float* offset,           // Center of rotation relative to current_position
+    uint8_t clockwise        // Clockwise?
   ) {
 
     float radius = HYPOT(offset[X_AXIS], offset[Y_AXIS]),
           center_X = current_position[X_AXIS] + offset[X_AXIS],
           center_Y = current_position[Y_AXIS] + offset[Y_AXIS],
-          linear_travel = target[Z_AXIS] - current_position[Z_AXIS],
-          extruder_travel = target[E_AXIS] - current_position[E_AXIS],
+          linear_travel = logical[Z_AXIS] - current_position[Z_AXIS],
+          extruder_travel = logical[E_AXIS] - current_position[E_AXIS],
           r_X = -offset[X_AXIS],  // Radius vector from center to current location
           r_Y = -offset[Y_AXIS],
-          rt_X = target[X_AXIS] - center_X,
-          rt_Y = target[Y_AXIS] - center_Y;
+          rt_X = logical[X_AXIS] - center_X,
+          rt_Y = logical[Y_AXIS] - center_Y;
 
     // CCW angle of rotation between position and target from the circle center. Only one atan2() trig computation required.
     float angular_travel = atan2(r_X * rt_Y - r_Y * rt_X, r_X * rt_X + r_Y * rt_Y);
@@ -8152,7 +8393,7 @@ void prepare_move_to_destination() {
     if (clockwise) angular_travel -= RADIANS(360);
 
     // Make a circle if the angular rotation is 0
-    if (angular_travel == 0 && current_position[X_AXIS] == target[X_AXIS] && current_position[Y_AXIS] == target[Y_AXIS])
+    if (angular_travel == 0 && current_position[X_AXIS] == logical[X_AXIS] && current_position[Y_AXIS] == logical[Y_AXIS])
       angular_travel += RADIANS(360);
 
     float mm_of_travel = HYPOT(angular_travel * radius, fabs(linear_travel));
@@ -8246,10 +8487,7 @@ void prepare_move_to_destination() {
 
       #if IS_KINEMATIC
         inverse_kinematics(arc_target);
-        #if ENABLED(DELTA) && ENABLED(AUTO_BED_LEVELING_NONLINEAR)
-          adjust_delta(arc_target);
-        #endif
-        planner.buffer_line(delta[X_AXIS], delta[Y_AXIS], delta[Z_AXIS], arc_target[E_AXIS], fr_mm_s, active_extruder);
+        planner.buffer_line(delta[A_AXIS], delta[B_AXIS], delta[C_AXIS], arc_target[E_AXIS], fr_mm_s, active_extruder);
       #else
         planner.buffer_line(arc_target[X_AXIS], arc_target[Y_AXIS], arc_target[Z_AXIS], arc_target[E_AXIS], fr_mm_s, active_extruder);
       #endif
@@ -8257,13 +8495,10 @@ void prepare_move_to_destination() {
 
     // Ensure last segment arrives at target location.
     #if IS_KINEMATIC
-      inverse_kinematics(target);
-      #if ENABLED(DELTA) && ENABLED(AUTO_BED_LEVELING_NONLINEAR)
-        adjust_delta(target);
-      #endif
-      planner.buffer_line(delta[X_AXIS], delta[Y_AXIS], delta[Z_AXIS], target[E_AXIS], fr_mm_s, active_extruder);
+      inverse_kinematics(logical);
+      planner.buffer_line(delta[A_AXIS], delta[B_AXIS], delta[C_AXIS], logical[E_AXIS], fr_mm_s, active_extruder);
     #else
-      planner.buffer_line(target[X_AXIS], target[Y_AXIS], target[Z_AXIS], target[E_AXIS], fr_mm_s, active_extruder);
+      planner.buffer_line(logical[X_AXIS], logical[Y_AXIS], logical[Z_AXIS], logical[E_AXIS], fr_mm_s, active_extruder);
     #endif
 
     // As far as the parser is concerned, the position is now == target. In reality the
@@ -8278,7 +8513,7 @@ void prepare_move_to_destination() {
   void plan_cubic_move(const float offset[4]) {
     cubic_b_spline(current_position, destination, offset, MMS_SCALED(feedrate_mm_s), active_extruder);
 
-    // As far as the parser is concerned, the position is now == target. In reality the
+    // As far as the parser is concerned, the position is now == destination. In reality the
     // motion control system might still be processing the action and the real tool position
     // in any intermediate location.
     set_current_to_destination();
@@ -8323,25 +8558,26 @@ void prepare_move_to_destination() {
 
 #endif // HAS_CONTROLLERFAN
 
-#if IS_SCARA
+#if ENABLED(MORGAN_SCARA)
 
+  /**
+   * Morgan SCARA Forward Kinematics. Results in cartes[].
+   * Maths and first version by QHARLEY.
+   * Integrated into Marlin and slightly restructured by Joachim Cerny.
+   */
   void forward_kinematics_SCARA(const float &a, const float &b) {
-    // Perform forward kinematics, and place results in cartes[]
-    // The maths and first version has been done by QHARLEY . Integrated into masterbranch 06/2014 and slightly restructured by Joachim Cerny in June 2014
 
-    float a_sin, a_cos, b_sin, b_cos;
-
-    a_sin = sin(RADIANS(a)) * L1;
-    a_cos = cos(RADIANS(a)) * L1;
-    b_sin = sin(RADIANS(b)) * L2;
-    b_cos = cos(RADIANS(b)) * L2;
+    float a_sin = sin(RADIANS(a)) * L1,
+          a_cos = cos(RADIANS(a)) * L1,
+          b_sin = sin(RADIANS(b)) * L2,
+          b_cos = cos(RADIANS(b)) * L2;
 
     cartes[X_AXIS] = a_cos + b_cos + SCARA_OFFSET_X;  //theta
     cartes[Y_AXIS] = a_sin + b_sin + SCARA_OFFSET_Y;  //theta+phi
 
     /*
-      SERIAL_ECHOPAIR("f_delta x=", a);
-      SERIAL_ECHOPAIR(" y=", b);
+      SERIAL_ECHOPAIR("Angle a=", a);
+      SERIAL_ECHOPAIR(" b=", b);
       SERIAL_ECHOPAIR(" a_sin=", a_sin);
       SERIAL_ECHOPAIR(" a_cos=", a_cos);
       SERIAL_ECHOPAIR(" b_sin=", b_sin);
@@ -8351,37 +8587,46 @@ void prepare_move_to_destination() {
     //*/
   }
 
-  void inverse_kinematics(const float cartesian[XYZ]) {
-    // Inverse kinematics.
-    // Perform SCARA IK and place results in delta[].
-    // The maths and first version were done by QHARLEY.
-    // Integrated, tweaked by Joachim Cerny in June 2014.
+  /**
+   * Morgan SCARA Inverse Kinematics. Results in delta[].
+   *
+   * See http://forums.reprap.org/read.php?185,283327
+   * 
+   * Maths and first version by QHARLEY.
+   * Integrated into Marlin and slightly restructured by Joachim Cerny.
+   */
+  void inverse_kinematics(const float logical[XYZ]) {
 
     static float C2, S2, SK1, SK2, THETA, PSI;
 
-    float sx = RAW_X_POSITION(cartesian[X_AXIS]) * axis_scaling[X_AXIS] - SCARA_OFFSET_X,  //Translate SCARA to standard X Y
-          sy = RAW_Y_POSITION(cartesian[Y_AXIS]) * axis_scaling[Y_AXIS] - SCARA_OFFSET_Y;  // With scaling factor.
+    float sx = RAW_X_POSITION(logical[X_AXIS]) - SCARA_OFFSET_X,  // Translate SCARA to standard X Y
+          sy = RAW_Y_POSITION(logical[Y_AXIS]) - SCARA_OFFSET_Y;  // With scaling factor.
 
-    #if (L1 == L2)
-      C2 = HYPOT2(sx, sy) / (2 * L1_2) - 1;
-    #else
-      C2 = (HYPOT2(sx, sy) - L1_2 - L2_2) / 45000;
-    #endif
+    if (L1 == L2)
+      C2 = HYPOT2(sx, sy) / L1_2_2 - 1;
+    else
+      C2 = (HYPOT2(sx, sy) - (L1_2 + L2_2)) / (2.0 * L1 * L2);
 
-    S2 = sqrt(1 - sq(C2));
+    S2 = sqrt(sq(C2) - 1);
 
+    // Unrotated Arm1 plus rotated Arm2 gives the distance from Center to End
     SK1 = L1 + L2 * C2;
+
+    // Rotated Arm2 gives the distance from Arm1 to Arm2
     SK2 = L2 * S2;
 
-    THETA = (atan2(sx, sy) - atan2(SK1, SK2)) * -1;
+    // Angle of Arm1 is the difference between Center-to-End angle and the Center-to-Elbow
+    THETA = atan2(SK1, SK2) - atan2(sx, sy);
+
+    // Angle of Arm2
     PSI = atan2(S2, C2);
 
     delta[A_AXIS] = DEGREES(THETA);        // theta is support arm angle
     delta[B_AXIS] = DEGREES(THETA + PSI);  // equal to sub arm angle (inverted motor)
-    delta[Z_AXIS] = cartesian[Z_AXIS];
+    delta[C_AXIS] = logical[Z_AXIS];
 
-    /**
-      DEBUG_POS("SCARA IK", cartesian);
+    /*
+      DEBUG_POS("SCARA IK", logical);
       DEBUG_POS("SCARA IK", delta);
       SERIAL_ECHOPAIR("  SCARA (x,y) ", sx);
       SERIAL_ECHOPAIR(",", sy);
@@ -8392,7 +8637,7 @@ void prepare_move_to_destination() {
     //*/
   }
 
-#endif // IS_SCARA
+#endif // MORGAN_SCARA
 
 #if ENABLED(TEMP_STAT_LEDS)
 
