@@ -88,8 +88,8 @@
 // build by the user have been successfully uploaded into firmware.
 #define STRING_CONFIG_H_AUTHOR "(none, default config)" // Who made the changes.
 #define SHOW_BOOTSCREEN
-#define STRING_SPLASH_LINE1 SHORT_BUILD_VERSION // will be shown during boot in line 1
-#define STRING_SPLASH_LINE2 WEBSITE_URL         // will be shown during boot in line 2
+#define STRING_SPLASH_LINE1 SHORT_BUILD_VERSION // will be shown during bootup in line 1
+#define STRING_SPLASH_LINE2 WEBSITE_URL         // will be shown during bootup in line 2
 
 //
 // *** VENDORS PLEASE READ *****************************************************
@@ -315,7 +315,7 @@
   //#define  DEFAULT_Kp 63.0
   //#define  DEFAULT_Ki 2.25
   //#define  DEFAULT_Kd 440
-  
+
   // Hephestos i3
   //#define  DEFAULT_Kp 23.05
   //#define  DEFAULT_Ki 2.00
@@ -325,7 +325,7 @@
   //#define  DEFAULT_Kp 14.53
   //#define  DEFAULT_Ki 1.14
   //#define  DEFAULT_Kd 46.43
-  
+
   // From pidautotune @240
   #define  DEFAULT_Kp 10.37
   #define  DEFAULT_Ki 0.77
@@ -364,7 +364,7 @@
   //#define  DEFAULT_bedKp 10.00
   //#define  DEFAULT_bedKi .023
   //#define  DEFAULT_bedKd 305.4
-  
+
 
   //120V 250W silicone heater into 4mm borosilicate (MendelMax 1.5+)
   //from pidautotune
@@ -411,7 +411,7 @@
  */
 
 #define THERMAL_PROTECTION_HOTENDS // Enable thermal protection for all extruders
-//#define THERMAL_PROTECTION_BED     // Enable thermal protection for the heated bed
+#define THERMAL_PROTECTION_BED     // Enable thermal protection for the heated bed
 
 //===========================================================================
 //============================= Mechanical Settings =========================
@@ -859,7 +859,6 @@
 
 // Homing speeds (mm/m)
 #define HOMING_FEEDRATE_XY (50*60)
-#define HOMING_FEEDRATE_Z  (4*60)
 #define HOMING_FEEDRATE_Z  (4*60)
 
 //=============================================================================
