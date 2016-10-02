@@ -88,8 +88,8 @@
 // build by the user have been successfully uploaded into firmware.
 #define STRING_CONFIG_H_AUTHOR "(none, default config)" // Who made the changes.
 #define SHOW_BOOTSCREEN
-#define STRING_SPLASH_LINE1 SHORT_BUILD_VERSION // will be shown during boot in line 1
-#define STRING_SPLASH_LINE2 WEBSITE_URL         // will be shown during boot in line 2
+#define STRING_SPLASH_LINE1 SHORT_BUILD_VERSION // will be shown during bootup in line 1
+#define STRING_SPLASH_LINE2 WEBSITE_URL         // will be shown during bootup in line 2
 
 //
 // *** VENDORS PLEASE READ *****************************************************
@@ -114,6 +114,7 @@
  */
 #define SERIAL_PORT 0
 
+#define BAUDRATE 115200
 /**
  * This setting determines the communication speed of the printer.
  *
@@ -122,7 +123,6 @@
  *
  * :[2400,9600,19200,38400,57600,115200,250000]
  */
-#define BAUDRATE 250000
 
 // Enable the Bluetooth serial interface on AT90USB devices
 //#define BLUETOOTH
@@ -135,7 +135,10 @@
 
 // Optional custom name for your RepStrap or other custom machine
 // Displayed in the LCD "Ready" message
-#define CUSTOM_MACHINE_NAME "Hephestos"
+#define CUSTOM_MACHINE_NAME "HEPHESTOS"
+
+// Added for BQ
+#define SOURCE_CODE_URL "http://www.bq.com/gb/downloads-prusa-i3-hephestos.html"
 
 // Define this to set a unique identifier for this printer, (Used by some programs to differentiate between machines)
 // You can use an online service to generate a random UUID. (eg http://www.uuidgenerator.net/version4)
@@ -187,7 +190,7 @@
  *
  * :{0:'No power switch',1:'ATX',2:'X-Box 360'}
  */
-#define POWER_SUPPLY 0
+#define POWER_SUPPLY 1
 
 #if POWER_SUPPLY > 0
   // Enable this option to leave the PSU off at startup.
@@ -246,7 +249,7 @@
 #define TEMP_SENSOR_1 0
 #define TEMP_SENSOR_2 0
 #define TEMP_SENSOR_3 0
-#define TEMP_SENSOR_BED 1
+#define TEMP_SENSOR_BED 0
 
 // This makes temp sensor 1 a redundant sensor for sensor 0. If the temperatures difference between these sensors is to high the print will be aborted.
 //#define TEMP_SENSOR_1_AS_REDUNDANT
@@ -258,7 +261,7 @@
 #define TEMP_WINDOW     1       // (degC) Window around target to start the residency timer x degC early.
 
 // Bed temperature must be close to target for this long before M190 returns success
-#define TEMP_BED_RESIDENCY_TIME 10  // (seconds)
+#define TEMP_BED_RESIDENCY_TIME 0   // (seconds)
 #define TEMP_BED_HYSTERESIS 3       // (degC) range of +/- temperatures considered "close" to the target one
 #define TEMP_BED_WINDOW     1       // (degC) Window around target to start the residency timer x degC early.
 
@@ -274,10 +277,10 @@
 // When temperature exceeds max temp, your heater will be switched off.
 // This feature exists to protect your hotend from overheating accidentally, but *NOT* from thermistor short/failure!
 // You should use MINTEMP for thermistor short/failure protection.
-#define HEATER_0_MAXTEMP 275
-#define HEATER_1_MAXTEMP 275
-#define HEATER_2_MAXTEMP 275
-#define HEATER_3_MAXTEMP 275
+#define HEATER_0_MAXTEMP 260
+#define HEATER_1_MAXTEMP 260
+#define HEATER_2_MAXTEMP 260
+#define HEATER_3_MAXTEMP 260
 #define BED_MAXTEMP 150
 
 //===========================================================================
@@ -298,39 +301,12 @@
                                   // Set/get with gcode: M301 E[extruder number, 0-2]
   #define PID_FUNCTIONAL_RANGE 10 // If the temperature difference between the target temperature and the actual temperature
                                   // is more than PID_FUNCTIONAL_RANGE then the PID will be shut off and the heater will be set to min/max.
-  #define PID_INTEGRAL_DRIVE_MAX PID_MAX  //limit for the integral term
   #define K1 0.95 //smoothing factor within the PID
 
-  // If you are using a pre-configured hotend then you can use one of the value sets by uncommenting it
-  // Ultimaker
-  //#define  DEFAULT_Kp 22.2
-  //#define  DEFAULT_Ki 1.08
-  //#define  DEFAULT_Kd 114
-
-  // MakerGear
-  //#define  DEFAULT_Kp 7.0
-  //#define  DEFAULT_Ki 0.1
-  //#define  DEFAULT_Kd 12
-
-  // Mendel Parts V9 on 12V
-  //#define  DEFAULT_Kp 63.0
-  //#define  DEFAULT_Ki 2.25
-  //#define  DEFAULT_Kd 440
-
   // Hephestos i3
-  //#define  DEFAULT_Kp 23.05
-  //#define  DEFAULT_Ki 2.00
-  //#define  DEFAULT_Kd 66.47
-
-  // From pidautotune @200
-  //#define  DEFAULT_Kp 14.53
-  //#define  DEFAULT_Ki 1.14
-  //#define  DEFAULT_Kd 46.43
-
-  // From pidautotune @240
-  #define  DEFAULT_Kp 10.37
-  #define  DEFAULT_Ki 0.77
-  #define  DEFAULT_Kd 34.93
+  #define  DEFAULT_Kp 23.05
+  #define  DEFAULT_Ki 2.00
+  #define  DEFAULT_Kd 66.47
 
 #endif // PIDTEMP
 
@@ -346,7 +322,7 @@
 // If your configuration is significantly different than this and you don't understand the issues involved, you probably
 // shouldn't use bed PID until someone else verifies your hardware works.
 // If this is enabled, find your own PID constants below.
-#define PIDTEMPBED
+//#define PIDTEMPBED
 
 //#define BED_LIMIT_SWITCHING
 
@@ -360,25 +336,17 @@
 
   //#define PID_BED_DEBUG // Sends debug data to the serial port.
 
-  #define PID_BED_INTEGRAL_DRIVE_MAX MAX_BED_POWER //limit for the integral term
-
   //120V 250W silicone heater into 4mm borosilicate (MendelMax 1.5+)
   //from FOPDT model - kp=.39 Tp=405 Tdead=66, Tc set to 79.2, aggressive factor of .15 (vs .1, 1, 10)
-  //#define  DEFAULT_bedKp 10.00
-  //#define  DEFAULT_bedKi .023
-  //#define  DEFAULT_bedKd 305.4
-
+  #define  DEFAULT_bedKp 10.00
+  #define  DEFAULT_bedKi .023
+  #define  DEFAULT_bedKd 305.4
 
   //120V 250W silicone heater into 4mm borosilicate (MendelMax 1.5+)
   //from pidautotune
   //#define  DEFAULT_bedKp 97.1
   //#define  DEFAULT_bedKi 1.41
   //#define  DEFAULT_bedKd 1675.16
-
-  // From pidautotune
-  #define  DEFAULT_bedKp 192.78
-  #define  DEFAULT_bedKi 25.80
-  #define  DEFAULT_bedKd 360.07
 
   // FIND YOUR OWN: "M303 E-1 C8 S90" to run autotune on the bed at 90 degreesC for 8 cycles.
 #endif // PIDTEMPBED
@@ -414,7 +382,7 @@
  */
 
 #define THERMAL_PROTECTION_HOTENDS // Enable thermal protection for all extruders
-//#define THERMAL_PROTECTION_BED     // Enable thermal protection for the heated bed
+#define THERMAL_PROTECTION_BED     // Enable thermal protection for the heated bed
 
 //===========================================================================
 //============================= Mechanical Settings =========================
@@ -493,7 +461,7 @@
  * Default Max Feed Rate (mm/s)
  * Override with M203
  */
-#define DEFAULT_MAX_FEEDRATE          { 300, 300, 3.3, 25 }
+#define DEFAULT_MAX_FEEDRATE          { 200, 200, 3.3, 25 }
 
 /**
  * Default Max Acceleration (change/s) change = mm/s
@@ -501,7 +469,7 @@
  *
  * Maximum start speed for accelerated moves: { X, Y, Z, E }
  */
-#define DEFAULT_MAX_ACCELERATION      { 3000, 3000, 100, 10000 }
+#define DEFAULT_MAX_ACCELERATION      { 1100, 1100, 100, 10000 }
 
 /**
  * Default Acceleration (change/s) change = mm/s
@@ -511,9 +479,9 @@
  *   M204 R    Retract Acceleration
  *   M204 T    Travel Acceleration
  */
-#define DEFAULT_ACCELERATION          3000    // X, Y, Z and E acceleration for printing moves
-#define DEFAULT_RETRACT_ACCELERATION  3000    // E acceleration for retracts
-#define DEFAULT_TRAVEL_ACCELERATION   3000    // X, Y, Z acceleration for travel (non printing) moves
+#define DEFAULT_ACCELERATION          650     // X, Y, Z and E acceleration for printing moves
+#define DEFAULT_RETRACT_ACCELERATION  1000    // E acceleration for retracts
+#define DEFAULT_TRAVEL_ACCELERATION   1000    // X, Y, Z acceleration for travel (non printing) moves
 
 /**
  * Defult Jerk (mm/s)
@@ -522,7 +490,8 @@
  * When changing speed and direction, if the difference is less than the
  * value set here, it may happen instantaneously.
  */
-#define DEFAULT_XYJERK                20.0
+#define DEFAULT_XJERK                 10.0
+#define DEFAULT_YJERK                 10.0
 #define DEFAULT_ZJERK                  0.4
 #define DEFAULT_EJERK                  5.0
 
@@ -537,7 +506,7 @@
 // Probes are sensors/switches that are activated / deactivated before/after use.
 //
 // Allen Key Probes, Servo Probes, Z-Sled Probes, FIX_MOUNTED_PROBE, etc.
-// You must activate one of these to use AUTO_BED_LEVELING_FEATURE below.
+// You must activate one of these to use Auto Bed Leveling below.
 //
 // Use M851 to set the Z probe vertical offset from the nozzle. Store with M500.
 //
@@ -549,6 +518,7 @@
 //#define FIX_MOUNTED_PROBE
 
 // The BLTouch probe emulates a servo probe.
+// The default connector is SERVO 0. Set Z_ENDSTOP_SERVO_NR below to override.
 //#define BLTOUCH
 
 // Z Servo Probe, such as an endstop switch on a rotating arm.
@@ -576,9 +546,9 @@
 //    |           |
 //    O-- FRONT --+
 //  (0,0)
-#define X_PROBE_OFFSET_FROM_EXTRUDER 10  // X offset: -left  +right  [of the nozzle]
-#define Y_PROBE_OFFSET_FROM_EXTRUDER 10  // Y offset: -front +behind [the nozzle]
-#define Z_PROBE_OFFSET_FROM_EXTRUDER 0   // Z offset: -below +above  [the nozzle]
+#define X_PROBE_OFFSET_FROM_EXTRUDER -25     // X offset: -left  +right  [of the nozzle]
+#define Y_PROBE_OFFSET_FROM_EXTRUDER -29     // Y offset: -front +behind [the nozzle]
+#define Z_PROBE_OFFSET_FROM_EXTRUDER -12.35  // Z offset: -below +above  [the nozzle]
 
 // X and Y axis travel speed (mm/m) between probes
 #define XY_PROBE_SPEED 8000
@@ -639,12 +609,22 @@
 // Enable Z Probe Repeatability test to see how accurate your probe is
 //#define Z_MIN_PROBE_REPEATABILITY_TEST
 
-//
-// Minimum heights for the probe to deploy/stow and travel.
-// These values specify the distance from the NOZZLE to the BED.
-//
-#define Z_PROBE_DEPLOY_HEIGHT 15 // Z position for the probe to deploy/stow
-#define Z_PROBE_TRAVEL_HEIGHT  5 // Z position for travel between points
+/**
+ * Z probes require clearance when deploying, stowing, and moving between
+ * probe points to avoid hitting the bed and other hardware.
+ * Servo-mounted probes require extra space for the arm to rotate.
+ * Inductive probes need space to keep from triggering early.
+ *
+ * Use these settings to specify the distance (mm) to raise the probe (or
+ * lower the bed). The values set here apply over and above any (negative)
+ * probe Z Offset set with Z_PROBE_OFFSET_FROM_EXTRUDER, M851, or the LCD.
+ * Only integer values >= 1 are valid here.
+ *
+ * Example: `M851 Z-5` with a CLEARANCE of 4  =>  9mm from bed to nozzle.
+ *     But: `M851 Z+1` with a CLEARANCE of 2  =>  2mm from bed to nozzle.
+ */
+#define Z_CLEARANCE_DEPLOY_PROBE   15 // Z Clearance for Deploy/Stow
+#define Z_CLEARANCE_BETWEEN_PROBES  5 // Z Clearance between probe points
 
 //
 // For M851 give a range for adjusting the Z probe offset
@@ -748,69 +728,78 @@
 #endif  // MESH_BED_LEVELING
 
 //===========================================================================
-//============================ Bed Auto Leveling ============================
+//============================ Auto Bed Leveling ============================
 //===========================================================================
-
 // @section bedlevel
 
-//#define AUTO_BED_LEVELING_FEATURE // Delete the comment to enable (remove // at the start of the line)
+/**
+ * Select one form of Auto Bed Leveling below.
+ *
+ *  If you're also using the Probe for Z Homing, it's
+ *  highly recommended to enable Z_SAFE_HOMING also!
+ *
+ * - 3POINT
+ *   Probe 3 arbitrary points on the bed (that aren't collinear)
+ *   You specify the XY coordinates of all 3 points.
+ *   The result is a single tilted plane. Best for a flat bed.
+ *
+ * - LINEAR
+ *   Probe several points in a grid.
+ *   You specify the rectangle and the density of sample points.
+ *   The result is a single tilted plane. Best for a flat bed.
+ *
+ * - BILINEAR
+ *   Probe several points in a grid.
+ *   You specify the rectangle and the density of sample points.
+ *   The result is a mesh, best for large or uneven beds.
+ */
+//#define AUTO_BED_LEVELING_3POINT
+//#define AUTO_BED_LEVELING_LINEAR
+//#define AUTO_BED_LEVELING_BILINEAR
 
-// Enable this feature to get detailed logging of G28, G29, M48, etc.
-// Logging is off by default. Enable this logging feature with 'M111 S32'.
-// NOTE: Requires a huge amount of PROGMEM.
+/**
+ * Enable detailed logging of G28, G29, M48, etc.
+ * Turn on with the command 'M111 S32'.
+ * NOTE: Requires a lot of PROGMEM!
+ */
 //#define DEBUG_LEVELING_FEATURE
 
-#if ENABLED(AUTO_BED_LEVELING_FEATURE)
+#if ENABLED(AUTO_BED_LEVELING_LINEAR) || ENABLED(AUTO_BED_LEVELING_BILINEAR)
 
-  // There are 2 different ways to specify probing locations:
-  //
-  // - "grid" mode
-  //   Probe several points in a rectangular grid.
-  //   You specify the rectangle and the density of sample points.
-  //   This mode is preferred because there are more measurements.
-  //
-  // - "3-point" mode
-  //   Probe 3 arbitrary points on the bed (that aren't collinear)
-  //   You specify the XY coordinates of all 3 points.
+  // Set the number of grid points per dimension.
+  #define ABL_GRID_POINTS_X 3
+  #define ABL_GRID_POINTS_Y ABL_GRID_POINTS_X
 
-  // Enable this to sample the bed in a grid (least squares solution).
-  // Note: this feature generates 10KB extra code size.
-  #define AUTO_BED_LEVELING_GRID
+  // Set the boundaries for probing (where the probe can reach).
+  #define LEFT_PROBE_BED_POSITION 15
+  #define RIGHT_PROBE_BED_POSITION 170
+  #define FRONT_PROBE_BED_POSITION 20
+  #define BACK_PROBE_BED_POSITION 170
 
-  #if ENABLED(AUTO_BED_LEVELING_GRID)
+  // The Z probe minimum outer margin (to validate G29 parameters).
+  #define MIN_PROBE_EDGE 10
 
-    #define LEFT_PROBE_BED_POSITION 15
-    #define RIGHT_PROBE_BED_POSITION 170
-    #define FRONT_PROBE_BED_POSITION 20
-    #define BACK_PROBE_BED_POSITION 170
+  // Probe along the Y axis, advancing X after each column
+  //#define PROBE_Y_FIRST
 
-    #define MIN_PROBE_EDGE 10 // The Z probe minimum square sides can be no smaller than this.
+#elif ENABLED(AUTO_BED_LEVELING_3POINT)
 
-    // Set the number of grid points per dimension.
-    // You probably don't need more than 3 (squared=9).
-    #define ABL_GRID_POINTS_X 3
-    #define ABL_GRID_POINTS_Y ABL_GRID_POINTS_X
+  // 3 arbitrary points to probe.
+  // A simple cross-product is used to estimate the plane of the bed.
+  #define ABL_PROBE_PT_1_X 15
+  #define ABL_PROBE_PT_1_Y 180
+  #define ABL_PROBE_PT_2_X 15
+  #define ABL_PROBE_PT_2_Y 20
+  #define ABL_PROBE_PT_3_X 170
+  #define ABL_PROBE_PT_3_Y 20
 
-  #else  // !AUTO_BED_LEVELING_GRID
+#endif
 
-    // Arbitrary points to probe.
-    // A simple cross-product is used to estimate the plane of the bed.
-    #define ABL_PROBE_PT_1_X 15
-    #define ABL_PROBE_PT_1_Y 180
-    #define ABL_PROBE_PT_2_X 15
-    #define ABL_PROBE_PT_2_Y 20
-    #define ABL_PROBE_PT_3_X 170
-    #define ABL_PROBE_PT_3_Y 20
-
-  #endif // !AUTO_BED_LEVELING_GRID
-
-  //#define Z_PROBE_END_SCRIPT "G1 Z10 F12000\nG1 X15 Y330\nG1 Z0.5\nG1 Z10" // These commands will be executed in the end of G29 routine.
-                                                                             // Useful to retract a deployable Z probe.
-
-  // If you've enabled AUTO_BED_LEVELING_FEATURE and are using the Z Probe for Z Homing,
-  // it is highly recommended you also enable Z_SAFE_HOMING below!
-
-#endif // AUTO_BED_LEVELING_FEATURE
+/**
+ * Commands to execute at the end of G29 probing.
+ * Useful to retract or move the Z probe out of the way.
+ */
+//#define Z_PROBE_END_SCRIPT "G1 Z10 F12000\nG1 X15 Y330\nG1 Z0.5\nG1 Z10"
 
 
 // @section homing
@@ -840,9 +829,8 @@
 #endif
 
 // Homing speeds (mm/m)
-#define HOMING_FEEDRATE_XY (50*60)
-#define HOMING_FEEDRATE_Z  (4*60)
-#define HOMING_FEEDRATE_Z  (4*60)
+#define HOMING_FEEDRATE_XY 2000
+#define HOMING_FEEDRATE_Z  150
 
 //=============================================================================
 //============================= Additional Features ===========================
@@ -871,8 +859,8 @@
 // When enabled Marlin will send a busy status message to the host
 // every couple of seconds when it can't accept commands.
 //
-#define HOST_KEEPALIVE_FEATURE       // Disable this if your host doesn't like keepalive messages
-#define DEFAULT_KEEPALIVE_INTERVAL 2 // Number of seconds between "busy" messages. Set with M113.
+#define HOST_KEEPALIVE_FEATURE        // Disable this if your host doesn't like keepalive messages
+#define DEFAULT_KEEPALIVE_INTERVAL 2  // Number of seconds between "busy" messages. Set with M113.
 
 //
 // M100 Free Memory Watcher
@@ -892,13 +880,13 @@
 // @section temperature
 
 // Preheat Constants
-#define PREHEAT_1_TEMP_HOTEND 180
-#define PREHEAT_1_TEMP_BED     70
-#define PREHEAT_1_FAN_SPEED     0 // Value from 0 to 255
+#define PREHEAT_1_TEMP_HOTEND 200
+#define PREHEAT_1_TEMP_BED      0
+#define PREHEAT_1_FAN_SPEED   255 // Value from 0 to 255
 
-#define PREHEAT_2_TEMP_HOTEND 240
-#define PREHEAT_2_TEMP_BED    110
-#define PREHEAT_2_FAN_SPEED     0 // Value from 0 to 255
+#define PREHEAT_2_TEMP_HOTEND 220
+#define PREHEAT_2_TEMP_BED    100
+#define PREHEAT_2_FAN_SPEED   255 // Value from 0 to 255
 
 //
 // Nozzle Park -- EXPERIMENTAL
@@ -1017,7 +1005,7 @@
 //
 // :{'en':'English','an':'Aragonese','bg':'Bulgarian','ca':'Catalan','cn':'Chinese','cz':'Czech','de':'German','el':'Greek','el-gr':'Greek (Greece)','es':'Spanish','eu':'Basque-Euskera','fi':'Finnish','fr':'French','gl':'Galician','hr':'Croatian','it':'Italian','kana':'Japanese','kana_utf8':'Japanese (UTF8)','nl':'Dutch','pl':'Polish','pt':'Portuguese','pt-br':'Portuguese (Brazilian)','pt-br_utf8':'Portuguese (Brazilian UTF8)','pt_utf8':'Portuguese (UTF8)','ru':'Russian','test':'TEST'}
 //
-#define LCD_LANGUAGE en
+//#define LCD_LANGUAGE en
 
 //
 // LCD Character Set

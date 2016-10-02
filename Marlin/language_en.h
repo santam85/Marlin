@@ -216,8 +216,11 @@
 #ifndef MSG_ACC
   #define MSG_ACC                             "Accel"
 #endif
-#ifndef MSG_VXY_JERK
-  #define MSG_VXY_JERK                        "Vxy-jerk"
+#ifndef MSG_VX_JERK
+  #define MSG_VX_JERK                         "Vx-jerk"
+#endif
+#ifndef MSG_VY_JERK
+  #define MSG_VY_JERK                         "Vy-jerk"
 #endif
 #ifndef MSG_VZ_JERK
   #define MSG_VZ_JERK                         "Vz-jerk"
@@ -366,7 +369,7 @@
 #ifndef MSG_ZPROBE_OUT
   #define MSG_ZPROBE_OUT                      "Z probe out. bed"
 #endif
-#ifndef MSG_BLTOUCH_RESET
+#ifndef MSG_BLTOUCH_SELFTEST
   #define MSG_BLTOUCH_SELFTEST                "BLTouch Self-Test"
 #endif
 #ifndef MSG_BLTOUCH_RESET
