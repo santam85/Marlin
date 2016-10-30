@@ -40,7 +40,6 @@
 
 // Change EEPROM version if these are changed:
 #define EEPROM_OFFSET 100
-#define MAX_EXTRUDERS 4
 
 /**
  * V24 EEPROM Layout:
@@ -383,7 +382,8 @@ void Config_RetrieveSettings() {
 
   //  SERIAL_ECHOPAIR("Version: [", ver);
   //  SERIAL_ECHOPAIR("] Stored version: [", stored_ver);
-  //  SERIAL_ECHOLNPGM("]");
+  //  SERIAL_CHAR(']');
+  //  SERIAL_EOL;
 
   if (strncmp(version, stored_ver, 3) != 0) {
     Config_ResetDefault();
@@ -588,7 +588,10 @@ void Config_ResetDefault() {
   #endif
 
   #if ENABLED(DELTA)
-    endstop_adj[X_AXIS] = endstop_adj[Y_AXIS] = endstop_adj[Z_AXIS] = 0;
+    const float adj[ABC] = DELTA_ENDSTOP_ADJ;
+    endstop_adj[A_AXIS] = adj[A_AXIS];
+    endstop_adj[B_AXIS] = adj[B_AXIS];
+    endstop_adj[C_AXIS] = adj[C_AXIS];
     delta_radius =  DELTA_RADIUS;
     delta_diagonal_rod =  DELTA_DIAGONAL_ROD;
     delta_segments_per_second =  DELTA_SEGMENTS_PER_SECOND;

@@ -205,15 +205,22 @@
 
 // @section extruder
 
-// Extruder cooling fans
-// Configure fan pin outputs to automatically turn on/off when the associated
-// extruder temperature is above/below EXTRUDER_AUTO_FAN_TEMPERATURE.
-// Multiple extruders can be assigned to the same pin in which case
-// the fan will turn on when any selected extruder is above the threshold.
-#define EXTRUDER_0_AUTO_FAN_PIN -1
-#define EXTRUDER_1_AUTO_FAN_PIN -1
-#define EXTRUDER_2_AUTO_FAN_PIN -1
-#define EXTRUDER_3_AUTO_FAN_PIN -1
+/**
+ * Extruder cooling fans
+ *
+ * Extruder auto fans automatically turn on when their extruders'
+ * temperatures go above EXTRUDER_AUTO_FAN_TEMPERATURE.
+ *
+ * Your board's pins file specifies the recommended pins. Override those here
+ * or set to -1 to disable completely.
+ *
+ * Multiple extruders can be assigned to the same pin in which case
+ * the fan will turn on when any selected extruder is above the threshold.
+ */
+#define E0_AUTO_FAN_PIN -1
+#define E1_AUTO_FAN_PIN -1
+#define E2_AUTO_FAN_PIN -1
+#define E3_AUTO_FAN_PIN -1
 #define EXTRUDER_AUTO_FAN_TEMPERATURE 50
 #define EXTRUDER_AUTO_FAN_SPEED   255  // == full speed
 
@@ -341,7 +348,7 @@
 // Default stepper release if idle. Set to 0 to deactivate.
 // Steppers will shut down DEFAULT_STEPPER_DEACTIVE_TIME seconds after the last move when DISABLE_INACTIVE_? is true.
 // Time can be set by M18 and M84.
-#define DEFAULT_STEPPER_DEACTIVE_TIME 60
+#define DEFAULT_STEPPER_DEACTIVE_TIME 120
 #define DISABLE_INACTIVE_X true
 #define DISABLE_INACTIVE_Y true
 #define DISABLE_INACTIVE_Z true  // set to false if the nozzle will fall down on your printed part when print has finished.
@@ -353,7 +360,7 @@
 // @section lcd
 
 #if ENABLED(ULTIPANEL)
-  #define MANUAL_FEEDRATE {120*60, 120*60, 18*60, 60}  // Feedrates for manual moves along X, Y, Z, E from panel
+  #define MANUAL_FEEDRATE {50*60, 50*60, 4*60, 60} // Feedrates for manual moves along X, Y, Z, E from panel
   #define ULTIPANEL_FEEDMULTIPLY  // Comment to disable setting feedrate multiplier via encoder
 #endif
 
@@ -501,9 +508,20 @@
   #define D_FILAMENT 1.75
 #endif
 
-// Implementation of a linear pressure control
-// Assumption: advance = k * (delta velocity)
-// K=0 means advance disabled. A good value for a gregs wade extruder will be around K=75
+/**
+ * Implementation of linear pressure control
+ *
+ * Assumption: advance = k * (delta velocity)
+ * K=0 means advance disabled.
+ * To get a rough start value for calibration, measure your "free filament length"
+ * between the hobbed bolt and the nozzle (in cm). Use the formula below that fits
+ * your setup, where L is the "free filament length":
+ *
+ * Filament diameter           |   1.75mm  |    3.0mm   |
+ * ----------------------------|-----------|------------|
+ * Stiff filament (PLA)        | K=47*L/10 | K=139*L/10 |
+ * Softer filament (ABS, nGen) | K=88*L/10 | K=260*L/10 |
+ */
 //#define LIN_ADVANCE
 
 #if ENABLED(LIN_ADVANCE)
@@ -607,10 +625,10 @@
   #define MIN_RETRACT 0.1                //minimum extruded mm to accept a automatic gcode retraction attempt
   #define RETRACT_LENGTH 3               //default retract length (positive mm)
   #define RETRACT_LENGTH_SWAP 13         //default swap retract length (positive mm), for extruder change
-  #define RETRACT_FEEDRATE 80            //default feedrate for retracting (mm/s)
+  #define RETRACT_FEEDRATE 45            //default feedrate for retracting (mm/s)
   #define RETRACT_ZLIFT 0                //default retract Z-lift
   #define RETRACT_RECOVER_LENGTH 0       //default additional recover length (mm, added to retract length when recovering)
-  //#define RETRACT_RECOVER_LENGTH_SWAP 0  //default additional swap recover length (mm, added to retract length when recovering from extruder change)
+  #define RETRACT_RECOVER_LENGTH_SWAP 0  //default additional swap recover length (mm, added to retract length when recovering from extruder change)
   #define RETRACT_RECOVER_FEEDRATE 8     //default feedrate for recovering from retraction (mm/s)
 #endif
 
@@ -809,5 +827,10 @@
 
 //#define EXPERIMENTAL_I2CBUS
 #define I2C_SLAVE_ADDRESS  0 // Set a value from 8 to 127 to act as a slave
+
+/**
+ * Add M43 command for pins info and testing
+ */
+//#define PINS_DEBUGGING
 
 #endif // CONFIGURATION_ADV_H

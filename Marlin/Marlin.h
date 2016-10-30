@@ -270,7 +270,7 @@ extern bool axis_known_position[XYZ]; // axis[n].is_known
 extern bool axis_homed[XYZ]; // axis[n].is_homed
 extern volatile bool wait_for_heatup;
 
-#if ENABLED(EMERGENCY_PARSER) && DISABLED(ULTIPANEL)
+#if ENABLED(ULTIPANEL) || ENABLED(EMERGENCY_PARSER)
   extern volatile bool wait_for_user;
 #endif
 
@@ -393,11 +393,6 @@ extern uint8_t active_extruder;
 #endif
 
 void calculate_volumetric_multipliers();
-
-// Buzzer
-#if HAS_BUZZER && PIN_EXISTS(BEEPER)
-  #include "buzzer.h"
-#endif
 
 /**
  * Blocking movement and shorthand functions
