@@ -161,7 +161,11 @@ extern volatile uint8_t buttons;  //an extended version of the last checked butt
   #include <LCD.h>
   #include <LiquidCrystal_SR.h>
   #define LCD_CLASS LiquidCrystal_SR
-  LCD_CLASS lcd(SR_DATA_PIN, SR_CLK_PIN);
+  #if defined(SR_STROBE_PIN)
+    LCD_CLASS lcd(SR_DATA_PIN, SR_CLK_PIN, SR_STROBE_PIN);
+  #else
+    LCD_CLASS lcd(SR_DATA_PIN, SR_CLK_PIN);
+  #endif
 #elif ENABLED(LCM1602)
   #include <Wire.h>
   #include <LCD.h>
@@ -717,7 +721,7 @@ static void lcd_implementation_status_screen() {
     lcd.print(itostr3(feedrate_percentage));
     lcd.print('%');
 
-    #if LCD_WIDTH > 19 && ENABLED(SDSUPPORT)
+    #if LCD_WIDTH >= 20 && ENABLED(SDSUPPORT)
 
       lcd.setCursor(7, 2);
       lcd_printPGM(PSTR("SD"));
@@ -727,7 +731,7 @@ static void lcd_implementation_status_screen() {
         lcd_printPGM(PSTR("---"));
       lcd.print('%');
 
-    #endif // LCD_WIDTH > 19 && SDSUPPORT
+    #endif // LCD_WIDTH >= 20 && SDSUPPORT
 
     lcd.setCursor(LCD_WIDTH - 6, 2);
     lcd.print(LCD_STR_CLOCK[0]);
