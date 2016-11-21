@@ -310,6 +310,10 @@ void Stepper::set_directions() {
   #endif // !ADVANCE && !LIN_ADVANCE
 }
 
+#if ENABLED(ENDSTOP_INTERRUPTS_FEATURE)
+  extern volatile uint8_t e_hit;
+#endif
+
 /**
  * Stepper Driver Interrupt
  *
@@ -355,6 +359,11 @@ void Stepper::isr() {
 
       step_events_completed = 0;
 
+      #if ENABLED(ENDSTOP_INTERRUPTS_FEATURE)
+        e_hit = 2; // Needed for the case an endstop is already triggered before the new move begins.
+                   // No 'change' can be detected.
+      #endif
+
       #if ENABLED(Z_LATE_ENABLE)
         if (current_block->steps[Z_AXIS] > 0) {
           enable_z();
@@ -374,11 +383,21 @@ void Stepper::isr() {
   }
 
   // Update endstops state, if enabled
-  if (endstops.enabled
+  if ((endstops.enabled
     #if HAS_BED_PROBE
       || endstops.z_probe_enabled
     #endif
-  ) endstops.update();
+    )
+    #if ENABLED(ENDSTOP_INTERRUPTS_FEATURE)
+      && e_hit
+    #endif
+  ) {
+    endstops.update();
+
+    #if ENABLED(ENDSTOP_INTERRUPTS_FEATURE)
+      e_hit--;
+    #endif
+  }
 
   // Take multiple steps per interrupt (For high speed moves)
   bool all_steps_done = false;
