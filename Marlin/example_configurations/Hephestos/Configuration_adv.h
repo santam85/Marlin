@@ -356,7 +356,7 @@
 // Default stepper release if idle. Set to 0 to deactivate.
 // Steppers will shut down DEFAULT_STEPPER_DEACTIVE_TIME seconds after the last move when DISABLE_INACTIVE_? is true.
 // Time can be set by M18 and M84.
-#define DEFAULT_STEPPER_DEACTIVE_TIME 60
+#define DEFAULT_STEPPER_DEACTIVE_TIME 120
 #define DISABLE_INACTIVE_X true
 #define DISABLE_INACTIVE_Y true
 #define DISABLE_INACTIVE_Z true  // set to false if the nozzle will fall down on your printed part when print has finished.
@@ -368,7 +368,7 @@
 // @section lcd
 
 #if ENABLED(ULTIPANEL)
-  #define MANUAL_FEEDRATE {120*60, 120*60, 18*60, 60}  // Feedrates for manual moves along X, Y, Z, E from panel
+  #define MANUAL_FEEDRATE {50*60, 50*60, 4*60, 60} // Feedrates for manual moves along X, Y, Z, E from panel
   #define ULTIPANEL_FEEDMULTIPLY  // Comment to disable setting feedrate multiplier via encoder
 #endif
 
@@ -688,10 +688,10 @@
   #define MIN_RETRACT 0.1                //minimum extruded mm to accept a automatic gcode retraction attempt
   #define RETRACT_LENGTH 3               //default retract length (positive mm)
   #define RETRACT_LENGTH_SWAP 13         //default swap retract length (positive mm), for extruder change
-  #define RETRACT_FEEDRATE 80            //default feedrate for retracting (mm/s)
+  #define RETRACT_FEEDRATE 45            //default feedrate for retracting (mm/s)
   #define RETRACT_ZLIFT 0                //default retract Z-lift
   #define RETRACT_RECOVER_LENGTH 0       //default additional recover length (mm, added to retract length when recovering)
-  //#define RETRACT_RECOVER_LENGTH_SWAP 0  //default additional swap recover length (mm, added to retract length when recovering from extruder change)
+  #define RETRACT_RECOVER_LENGTH_SWAP 0  //default additional swap recover length (mm, added to retract length when recovering from extruder change)
   #define RETRACT_RECOVER_FEEDRATE 8     //default feedrate for recovering from retraction (mm/s)
 #endif
 
@@ -1124,6 +1124,7 @@
  * Include capabilities in M115 output
  */
 //#define EXTENDED_CAPABILITIES_REPORT
+
 
 /**
  * Volumetric extrusion default state

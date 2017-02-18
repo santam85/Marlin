@@ -86,7 +86,7 @@
 // User-specified version info of this build to display in [Pronterface, etc] terminal window during
 // startup. Implementation of an idea by Prof Braino to inform user that any changes made to this
 // build by the user have been successfully uploaded into firmware.
-#define STRING_CONFIG_H_AUTHOR "(none, default config)" // Who made the changes.
+#define STRING_CONFIG_H_AUTHOR "Santa" // Who made the changes.
 #define SHOW_BOOTSCREEN
 #define STRING_SPLASH_LINE1 SHORT_BUILD_VERSION // will be shown during bootup in line 1
 #define STRING_SPLASH_LINE2 WEBSITE_URL         // will be shown during bootup in line 2
@@ -122,7 +122,7 @@
  *
  * :[2400, 9600, 19200, 38400, 57600, 115200, 250000]
  */
-#define BAUDRATE 115200
+#define BAUDRATE 250000
 
 // Enable the Bluetooth serial interface on AT90USB devices
 //#define BLUETOOTH
@@ -135,14 +135,11 @@
 
 // Optional custom name for your RepStrap or other custom machine
 // Displayed in the LCD "Ready" message
-#define CUSTOM_MACHINE_NAME "HEPHESTOS"
-
-// Added for BQ
-#define SOURCE_CODE_URL "http://www.bq.com/gb/downloads-prusa-i3-hephestos.html"
+#define CUSTOM_MACHINE_NAME "Hephestos"
 
 // Define this to set a unique identifier for this printer, (Used by some programs to differentiate between machines)
 // You can use an online service to generate a random UUID. (eg http://www.uuidgenerator.net/version4)
-//#define MACHINE_UUID "00000000-0000-0000-0000-000000000000"
+#define MACHINE_UUID "151a9de7-57c7-496d-80ba-6d6ba1bbf6b7"
 
 // This defines the number of extruders
 // :[1, 2, 3, 4]
@@ -256,7 +253,7 @@
 #define TEMP_SENSOR_1 0
 #define TEMP_SENSOR_2 0
 #define TEMP_SENSOR_3 0
-#define TEMP_SENSOR_BED 0
+#define TEMP_SENSOR_BED 11
 
 // Dummy thermistor constant temperature readings, for use with 998 and 999
 #define DUMMY_THERMISTOR_998_VALUE 25
@@ -273,7 +270,7 @@
 #define TEMP_WINDOW     1       // (degC) Window around target to start the residency timer x degC early.
 
 // Bed temperature must be close to target for this long before M190 returns success
-#define TEMP_BED_RESIDENCY_TIME 0   // (seconds)
+#define TEMP_BED_RESIDENCY_TIME 10  // (seconds)
 #define TEMP_BED_HYSTERESIS 3       // (degC) range of +/- temperatures considered "close" to the target one
 #define TEMP_BED_WINDOW     1       // (degC) Window around target to start the residency timer x degC early.
 
@@ -289,10 +286,10 @@
 // When temperature exceeds max temp, your heater will be switched off.
 // This feature exists to protect your hotend from overheating accidentally, but *NOT* from thermistor short/failure!
 // You should use MINTEMP for thermistor short/failure protection.
-#define HEATER_0_MAXTEMP 260
-#define HEATER_1_MAXTEMP 260
-#define HEATER_2_MAXTEMP 260
-#define HEATER_3_MAXTEMP 260
+#define HEATER_0_MAXTEMP 275
+#define HEATER_1_MAXTEMP 275
+#define HEATER_2_MAXTEMP 275
+#define HEATER_3_MAXTEMP 275
 #define BED_MAXTEMP 150
 
 //===========================================================================
@@ -315,10 +312,10 @@
                                   // is more than PID_FUNCTIONAL_RANGE then the PID will be shut off and the heater will be set to min/max.
   #define K1 0.95 //smoothing factor within the PID
 
-  // Hephestos i3
-  #define  DEFAULT_Kp 23.05
-  #define  DEFAULT_Ki 2.00
-  #define  DEFAULT_Kd 66.47
+  // Hephestos
+  #define  DEFAULT_Kp 19.18
+  #define  DEFAULT_Ki 1.36
+  #define  DEFAULT_Kd 67.42
 
 #endif // PIDTEMP
 
@@ -334,7 +331,7 @@
 // If your configuration is significantly different than this and you don't understand the issues involved, you probably
 // shouldn't use bed PID until someone else verifies your hardware works.
 // If this is enabled, find your own PID constants below.
-//#define PIDTEMPBED
+#define PIDTEMPBED
 
 //#define BED_LIMIT_SWITCHING
 
@@ -350,15 +347,21 @@
 
   //120V 250W silicone heater into 4mm borosilicate (MendelMax 1.5+)
   //from FOPDT model - kp=.39 Tp=405 Tdead=66, Tc set to 79.2, aggressive factor of .15 (vs .1, 1, 10)
-  #define  DEFAULT_bedKp 10.00
-  #define  DEFAULT_bedKi .023
-  #define  DEFAULT_bedKd 305.4
+  //#define  DEFAULT_bedKp 10.00
+  //#define  DEFAULT_bedKi .023
+  //#define  DEFAULT_bedKd 305.4
+
 
   //120V 250W silicone heater into 4mm borosilicate (MendelMax 1.5+)
   //from pidautotune
   //#define  DEFAULT_bedKp 97.1
   //#define  DEFAULT_bedKi 1.41
   //#define  DEFAULT_bedKd 1675.16
+
+  // From pidautotune
+  #define  DEFAULT_bedKp 192.78
+  #define  DEFAULT_bedKi 25.80
+  #define  DEFAULT_bedKd 360.07
 
   // FIND YOUR OWN: "M303 E-1 C8 S90" to run autotune on the bed at 90 degreesC for 8 cycles.
 #endif // PIDTEMPBED
@@ -455,7 +458,7 @@
 
 // Enable this feature if all enabled endstop pins are interrupt-capable.
 // This will remove the need to poll the interrupt pins, saving many CPU cycles.
-//#define ENDSTOP_INTERRUPTS_FEATURE
+#define ENDSTOP_INTERRUPTS_FEATURE
 
 //=============================================================================
 //============================== Movement Settings ============================
@@ -485,7 +488,7 @@
  * Override with M203
  *                                      X, Y, Z, E0 [, E1[, E2[, E3]]]
  */
-#define DEFAULT_MAX_FEEDRATE          { 200, 200, 3.3, 25 }
+#define DEFAULT_MAX_FEEDRATE          { 300, 300, 3.3, 25 }
 
 /**
  * Default Max Acceleration (change/s) change = mm/s
@@ -623,11 +626,11 @@
 // Enable Z_MIN_PROBE_ENDSTOP to use _both_ a Z Probe and a Z-min-endstop on the same machine.
 // With this option the Z_MIN_PROBE_PIN will only be used for probing, never for homing.
 //
-#define Z_MIN_PROBE_ENDSTOP
+//#define Z_MIN_PROBE_ENDSTOP
 
 // Enable Z_MIN_PROBE_USES_Z_MIN_ENDSTOP_PIN to use the Z_MIN_PIN for your Z_MIN_PROBE.
 // The Z_MIN_PIN will then be used for both Z-homing and probing.
-//#define Z_MIN_PROBE_USES_Z_MIN_ENDSTOP_PIN
+#define Z_MIN_PROBE_USES_Z_MIN_ENDSTOP_PIN
 
 // To use a probe you must enable one of the two options above!
 
@@ -648,7 +651,7 @@
  * Example: `M851 Z-5` with a CLEARANCE of 4  =>  9mm from bed to nozzle.
  *     But: `M851 Z+1` with a CLEARANCE of 2  =>  2mm from bed to nozzle.
  */
-#define Z_CLEARANCE_DEPLOY_PROBE   15 // Z Clearance for Deploy/Stow
+#define Z_CLEARANCE_DEPLOY_PROBE   10 // Z Clearance for Deploy/Stow
 #define Z_CLEARANCE_BETWEEN_PROBES  5 // Z Clearance between probe points
 
 //
@@ -713,8 +716,8 @@
 #define X_MIN_POS 0
 #define Y_MIN_POS 0
 #define Z_MIN_POS 0
-#define X_MAX_POS 215
-#define Y_MAX_POS 210
+#define X_MAX_POS 220
+#define Y_MAX_POS 320
 #define Z_MAX_POS 180
 
 /**
@@ -880,8 +883,8 @@
 #endif
 
 // Homing speeds (mm/m)
-#define HOMING_FEEDRATE_XY 2000
-#define HOMING_FEEDRATE_Z  150
+#define HOMING_FEEDRATE_XY (50*60)
+#define HOMING_FEEDRATE_Z  (4*60)
 
 //=============================================================================
 //============================= Additional Features ===========================
@@ -932,12 +935,12 @@
 
 // Preheat Constants
 #define PREHEAT_1_TEMP_HOTEND 200
-#define PREHEAT_1_TEMP_BED      0
-#define PREHEAT_1_FAN_SPEED   255 // Value from 0 to 255
+#define PREHEAT_1_TEMP_BED     60
+#define PREHEAT_1_FAN_SPEED     0 // Value from 0 to 255
 
-#define PREHEAT_2_TEMP_HOTEND 220
-#define PREHEAT_2_TEMP_BED    100
-#define PREHEAT_2_FAN_SPEED   255 // Value from 0 to 255
+#define PREHEAT_2_TEMP_HOTEND 240
+#define PREHEAT_2_TEMP_BED    110
+#define PREHEAT_2_FAN_SPEED     0 // Value from 0 to 255
 
 //
 // Nozzle Park -- EXPERIMENTAL
@@ -1056,7 +1059,7 @@
 //
 // :{ 'en':'English', 'an':'Aragonese', 'bg':'Bulgarian', 'ca':'Catalan', 'cn':'Chinese', 'cz':'Czech', 'de':'German', 'el':'Greek', 'el-gr':'Greek (Greece)', 'es':'Spanish', 'eu':'Basque-Euskera', 'fi':'Finnish', 'fr':'French', 'gl':'Galician', 'hr':'Croatian', 'it':'Italian', 'kana':'Japanese', 'kana_utf8':'Japanese (UTF8)', 'nl':'Dutch', 'pl':'Polish', 'pt':'Portuguese', 'pt-br':'Portuguese (Brazilian)', 'pt-br_utf8':'Portuguese (Brazilian UTF8)', 'pt_utf8':'Portuguese (UTF8)', 'ru':'Russian', 'tr':'Turkish', 'uk':'Ukrainian', 'test':'TEST' }
 //
-//#define LCD_LANGUAGE en
+#define LCD_LANGUAGE en
 
 //
 // LCD Character Set
@@ -1436,7 +1439,7 @@
 // Uncomment below to enable
 //#define FILAMENT_WIDTH_SENSOR
 
-#define DEFAULT_NOMINAL_FILAMENT_DIA 3.00  //Enter the diameter (in mm) of the filament generally used (3.0 mm or 1.75 mm) - this is then used in the slicer software.  Used for sensor reading validation
+#define DEFAULT_NOMINAL_FILAMENT_DIA 1.75  //Enter the diameter (in mm) of the filament generally used (3.0 mm or 1.75 mm) - this is then used in the slicer software.  Used for sensor reading validation
 
 #if ENABLED(FILAMENT_WIDTH_SENSOR)
   #define FILAMENT_SENSOR_EXTRUDER_NUM 0   //The number of the extruder that has the filament sensor (0,1,2)
