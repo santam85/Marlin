@@ -57,7 +57,7 @@
  * G12 - Clean tool
  * G20 - Set input units to inches
  * G21 - Set input units to millimeters
- * G26 - Mesh Validation Pattern (Requires UBL_G26_MESH_EDITING)
+ * G26 - Mesh Validation Pattern (Requires UBL_G26_MESH_VALIDATION)
  * G27 - Park Nozzle (Requires NOZZLE_PARK_FEATURE)
  * G28 - Home one or more axes
  * G29 - Detailed Z probe, probes the bed at 3 or more points.  Will fail if you haven't homed yet.
@@ -1684,7 +1684,7 @@ void do_blocking_move_to(const float &x, const float &y, const float &z, const f
 
   #if ENABLED(DELTA)
 
-    if ( ! position_is_reachable_xy( x, y )) return;
+    if (!position_is_reachable_xy(x, y)) return;
 
     feedrate_mm_s = fr_mm_s ? fr_mm_s : XY_PROBE_FEEDRATE_MM_S;
 
@@ -1740,7 +1740,7 @@ void do_blocking_move_to(const float &x, const float &y, const float &z, const f
 
   #elif IS_SCARA
 
-    if ( ! position_is_reachable_xy( x, y )) return;
+    if (!position_is_reachable_xy(x, y)) return;
 
     set_destination_to_current();
 
@@ -2355,7 +2355,7 @@ static void clean_up_after_endstop_or_probe_move() {
    *   - Raise to the BETWEEN height
    * - Return the probed Z position
    */
-  float probe_pt(const float x, const float y, const bool stow/*=true*/, const int verbose_level/*=1*/) {
+  float probe_pt(const float &x, const float &y, const bool stow/*=true*/, const int verbose_level/*=1*/) {
     #if ENABLED(DEBUG_LEVELING_FEATURE)
       if (DEBUGGING(LEVELING)) {
         SERIAL_ECHOPAIR(">>> probe_pt(", x);
@@ -2366,7 +2366,7 @@ static void clean_up_after_endstop_or_probe_move() {
       }
     #endif
 
-    if ( ! position_is_reachable_by_probe_xy( x, y )) return NAN;
+    if (!position_is_reachable_by_probe_xy(x, y)) return NAN;
 
     const float old_feedrate_mm_s = feedrate_mm_s;
 
@@ -3416,8 +3416,8 @@ inline void gcode_G7(
       return;
     }
 
-    destination[X_AXIS] = hasI ? pgm_read_float(&ubl.mesh_index_to_xpos[ix]) : current_position[X_AXIS];
-    destination[Y_AXIS] = hasJ ? pgm_read_float(&ubl.mesh_index_to_ypos[iy]) : current_position[Y_AXIS];
+    destination[X_AXIS] = hasI ? ubl.mesh_index_to_xpos(ix) : current_position[X_AXIS];
+    destination[Y_AXIS] = hasJ ? ubl.mesh_index_to_ypos(iy) : current_position[Y_AXIS];
     destination[Z_AXIS] = current_position[Z_AXIS]; //todo: perhaps add Z-move support?
     destination[E_AXIS] = current_position[E_AXIS];
 
@@ -3713,7 +3713,7 @@ inline void gcode_G7(
       destination[Y_AXIS] -= Y_PROBE_OFFSET_FROM_EXTRUDER;
     #endif
 
-    if ( position_is_reachable_xy( destination[X_AXIS], destination[Y_AXIS] )) {
+    if (position_is_reachable_xy(destination[X_AXIS], destination[Y_AXIS])) {
 
       #if ENABLED(DEBUG_LEVELING_FEATURE)
         if (DEBUGGING(LEVELING)) DEBUG_POS("Z_SAFE_HOMING", destination);
@@ -4639,7 +4639,8 @@ void home_all_axes() { gcode_G28(true); }
             indexIntoAB[xCount][yCount] = abl_probe_index;
           #endif
 
-          if (position_is_reachable_xy( xProbe, yProbe )) break;
+          // Keep looping till a reachable point is found
+          if (position_is_reachable_xy(xProbe, yProbe)) break;
           ++abl_probe_index;
         }
 
@@ -4750,7 +4751,7 @@ void home_all_axes() { gcode_G28(true); }
 
             #if IS_KINEMATIC
               // Avoid probing outside the round or hexagonal area
-              if (!position_is_reachable_by_probe_xy( xProbe, yProbe )) continue;
+              if (!position_is_reachable_by_probe_xy(xProbe, yProbe)) continue;
             #endif
 
             measured_z = faux ? 0.001 * random(-100, 101) : probe_pt(xProbe, yProbe, stow_probe_after_each, verbose_level);
@@ -5055,7 +5056,7 @@ void home_all_axes() { gcode_G28(true); }
     const float xpos = code_seen('X') ? code_value_linear_units() : current_position[X_AXIS] + X_PROBE_OFFSET_FROM_EXTRUDER,
                 ypos = code_seen('Y') ? code_value_linear_units() : current_position[Y_AXIS] + Y_PROBE_OFFSET_FROM_EXTRUDER;
 
-    if (!position_is_reachable_by_probe_xy( xpos, ypos )) return;
+    if (!position_is_reachable_by_probe_xy(xpos, ypos)) return;
 
     // Disable leveling so the planner won't mess with us
     #if HAS_LEVELING
@@ -5106,9 +5107,9 @@ void home_all_axes() { gcode_G28(true); }
      *      P4-P7  Probe all positions at different locations and average them.
      *
      *   T   Don't calibrate tower angle corrections
-     *   
+     *
      *   Cn.nn Calibration precision; when omitted calibrates to maximum precision
-     *   
+     *
      *   Vn  Verbose level:
      *
      *      V0  Dry-run mode. Report settings and probe results. No calibration.
@@ -5136,7 +5137,6 @@ void home_all_axes() { gcode_G28(true); }
       }
 
       const bool towers_set = !code_seen('T'),
-      
                  _1p_calibration      = probe_points == 1,
                  _4p_calibration      = probe_points == 2,
                  _4p_towers_points    = _4p_calibration && towers_set,
@@ -5150,14 +5150,12 @@ void home_all_axes() { gcode_G28(true); }
                  _7p_intermed_points  = _7p_calibration && !_7p_half_circle;
 
       if (!_1p_calibration) {  // test if the outer radius is reachable
+        const float circles = (_7p_quadruple_circle ? 1.5 :
+                               _7p_triple_circle    ? 1.0 :
+                               _7p_double_circle    ? 0.5 : 0),
+                    radius = (1 + circles * 0.1) * delta_calibration_radius;
         for (uint8_t axis = 1; axis < 13; ++axis) {
-          float circles = (_7p_quadruple_circle ? 1.5 :
-                          _7p_triple_circle ? 1.0 :
-                          _7p_double_circle ? 0.5 : 0);
-          if (!position_is_reachable_by_probe_xy(cos(RADIANS(180 + 30 * axis)) * 
-                                                 delta_calibration_radius * (1 + circles * 0.1),
-                                                 sin(RADIANS(180 + 30 * axis)) * 
-                                                 delta_calibration_radius * (1 + circles * 0.1))) {
+          if (!position_is_reachable_by_probe_xy(cos(RADIANS(180 + 30 * axis)) * radius, sin(RADIANS(180 + 30 * axis)) * radius)) {
             SERIAL_PROTOCOLLNPGM("?(M665 B)ed radius is implausible.");
             return;
           }
@@ -5231,7 +5229,7 @@ void home_all_axes() { gcode_G28(true); }
       #endif
 
       int8_t iterations = 0;
-      
+
       home_offset[Z_AXIS] -= probe_pt(0.0, 0.0 , true, 1); // 1st probe to set height
       do_probe_raise(Z_CLEARANCE_BETWEEN_PROBES);
 
@@ -5241,7 +5239,7 @@ void home_all_axes() { gcode_G28(true); }
         int16_t N = 0;
 
         test_precision = zero_std_dev_old != 999.0 ? (zero_std_dev + zero_std_dev_old) / 2 : zero_std_dev;
-        
+
         iterations++;
 
         // Probe the points
@@ -5288,7 +5286,7 @@ void home_all_axes() { gcode_G28(true); }
           }
         zero_std_dev_old = zero_std_dev;
         zero_std_dev = round(sqrt(S2 / N) * 1000.0) / 1000.0 + 0.00001;
-        
+
         if (iterations == 1) home_offset[Z_AXIS] = zh_old; // reset height after 1st probe change
 
         // Solve matrices
@@ -5418,7 +5416,7 @@ void home_all_axes() { gcode_G28(true); }
             else {
               SERIAL_PROTOCOLPGM("std dev:");
               SERIAL_PROTOCOL_F(zero_std_dev, 3);
-            }            
+            }
             SERIAL_EOL;
             LCD_MESSAGEPGM("Calibration OK"); // TODO: Make translatable string
           }
@@ -5483,7 +5481,7 @@ void home_all_axes() { gcode_G28(true); }
         home_delta();
         endstops.not_homing();
 
-      } 
+      }
       while (zero_std_dev < test_precision && zero_std_dev > calibration_precision && iterations < 31);
 
       #if ENABLED(DELTA_HOME_TO_SAFE_ZONE)
@@ -6513,7 +6511,7 @@ inline void gcode_M42() {
           #else
             // If we have gone out too far, we can do a simple fix and scale the numbers
             // back in closer to the origin.
-            while ( ! position_is_reachable_by_probe_xy( X_current, Y_current )) {
+            while (!position_is_reachable_by_probe_xy(X_current, Y_current)) {
               X_current *= 0.8;
               Y_current *= 0.8;
               if (verbose_level > 3) {
@@ -6613,7 +6611,7 @@ inline void gcode_M42() {
 
 #endif // Z_MIN_PROBE_REPEATABILITY_TEST
 
-#if ENABLED(AUTO_BED_LEVELING_UBL) && ENABLED(UBL_G26_MESH_EDITING)
+#if ENABLED(AUTO_BED_LEVELING_UBL) && ENABLED(UBL_G26_MESH_VALIDATION)
 
   inline void gcode_M49() {
     ubl.g26_debug_flag ^= true;
@@ -6621,7 +6619,7 @@ inline void gcode_M42() {
     serialprintPGM(ubl.g26_debug_flag ? PSTR("on.") : PSTR("off."));
   }
 
-#endif // AUTO_BED_LEVELING_UBL && UBL_G26_MESH_EDITING
+#endif // AUTO_BED_LEVELING_UBL && UBL_G26_MESH_VALIDATION
 
 /**
  * M75: Start print timer
@@ -6684,7 +6682,8 @@ inline void gcode_M104() {
       }
     #endif
 
-    if (code_value_temp_abs() > thermalManager.degHotend(target_extruder)) lcd_status_printf_P(0, PSTR("E%i %s"), target_extruder + 1, MSG_HEATING);
+    if (code_value_temp_abs() > thermalManager.degHotend(target_extruder))
+      lcd_status_printf_P(0, PSTR("E%i %s"), target_extruder + 1, MSG_HEATING);
   }
 
   #if ENABLED(AUTOTEMP)
@@ -8290,7 +8289,7 @@ inline void gcode_M226() {
       // Report current state
       SERIAL_ECHO_START;
       SERIAL_ECHOPAIR("Cold extrudes are ", (thermalManager.allow_cold_extrude ? "en" : "dis"));
-      SERIAL_ECHOPAIR("abled (min temp ", int(thermalManager.extrude_min_temp + 0.5));
+      SERIAL_ECHOPAIR("abled (min temp ", thermalManager.extrude_min_temp);
       SERIAL_ECHOLNPGM("C)");
     }
   }
@@ -8705,7 +8704,7 @@ void quickstop_stepper() {
     const bool hasZ = code_seen('Z'), hasQ = !hasZ && code_seen('Q');
 
     if (hasC) {
-      const mesh_index_pair location = find_closest_mesh_point_of_type(REAL, current_position[X_AXIS], current_position[Y_AXIS], USE_NOZZLE_AS_REFERENCE, NULL, false);
+      const mesh_index_pair location = ubl.find_closest_mesh_point_of_type(REAL, current_position[X_AXIS], current_position[Y_AXIS], USE_NOZZLE_AS_REFERENCE, NULL, false);
       ix = location.x_index;
       iy = location.y_index;
     }
@@ -8741,10 +8740,10 @@ void quickstop_stepper() {
     bool err = false;
     LOOP_XYZ(i) {
       if (axis_homed[i]) {
-        float base = (current_position[i] > (soft_endstop_min[i] + soft_endstop_max[i]) * 0.5) ? base_home_pos((AxisEnum)i) : 0,
-              diff = current_position[i] - LOGICAL_POSITION(base, i);
+        const float base = (current_position[i] > (soft_endstop_min[i] + soft_endstop_max[i]) * 0.5) ? base_home_pos((AxisEnum)i) : 0,
+                    diff = base - RAW_POSITION(current_position[i], i);
         if (WITHIN(diff, -20, 20)) {
-          set_home_offset((AxisEnum)i, home_offset[i] - diff);
+          set_home_offset((AxisEnum)i, diff);
         }
         else {
           SERIAL_ERROR_START;
@@ -10095,7 +10094,7 @@ void process_next_command() {
           break;
       #endif // INCH_MODE_SUPPORT
 
-      #if ENABLED(AUTO_BED_LEVELING_UBL) && ENABLED(UBL_G26_MESH_EDITING)
+      #if ENABLED(AUTO_BED_LEVELING_UBL) && ENABLED(UBL_G26_MESH_VALIDATION)
         case 26: // G26: Mesh Validation Pattern generation
           gcode_G26();
           break;
@@ -10247,11 +10246,11 @@ void process_next_command() {
           break;
       #endif // Z_MIN_PROBE_REPEATABILITY_TEST
 
-      #if ENABLED(AUTO_BED_LEVELING_UBL) && ENABLED(UBL_G26_MESH_EDITING)
+      #if ENABLED(AUTO_BED_LEVELING_UBL) && ENABLED(UBL_G26_MESH_VALIDATION)
         case 49: // M49: Turn on or off G26 debug flag for verbose output
           gcode_M49();
           break;
-      #endif // AUTO_BED_LEVELING_UBL && UBL_G26_MESH_EDITING
+      #endif // AUTO_BED_LEVELING_UBL && UBL_G26_MESH_VALIDATION
 
       case 75: // M75: Start print timer
         gcode_M75(); break;
@@ -10677,7 +10676,7 @@ void process_next_command() {
           break;
       #endif // FILAMENT_CHANGE_FEATURE
 
-      #if ENABLED(DUAL_X_CARRIAGE)
+      #if ENABLED(DUAL_X_CARRIAGE) || ENABLED(DUAL_NOZZLE_DUPLICATION_MODE)
         case 605: // M605: Set Dual X Carriage movement mode
           gcode_M605();
           break;
@@ -11468,7 +11467,7 @@ void set_current_from_steppers_for_axis(const AxisEnum axis) {
     #if ENABLED(AUTO_BED_LEVELING_UBL)
       const float fr_scaled = MMS_SCALED(feedrate_mm_s);
       if (ubl.state.active) {
-        ubl_line_to_destination_cartesian(fr_scaled, active_extruder);
+        ubl.line_to_destination_cartesian(fr_scaled, active_extruder);
         return true;
       }
       else
@@ -11613,14 +11612,14 @@ void prepare_move_to_destination() {
   if (
     #if IS_KINEMATIC
       #if UBL_DELTA
-        ubl_prepare_linear_move_to(destination, feedrate_mm_s)
+        ubl.prepare_linear_move_to(destination, feedrate_mm_s)
       #else
         prepare_kinematic_move_to(destination)
       #endif
     #elif ENABLED(DUAL_X_CARRIAGE)
       prepare_move_to_destination_dualx()
     #elif UBL_DELTA // will work for CARTESIAN too (smaller segments follow mesh more closely)
-      ubl_prepare_linear_move_to(destination, feedrate_mm_s)
+      ubl.prepare_linear_move_to(destination, feedrate_mm_s)
     #else
       prepare_move_to_destination_cartesian()
     #endif
@@ -11909,9 +11908,8 @@ void prepare_move_to_destination() {
       #if HAS_TEMP_BED
         max_temp = MAX3(max_temp, thermalManager.degTargetBed(), thermalManager.degBed());
       #endif
-      HOTEND_LOOP() {
+      HOTEND_LOOP()
         max_temp = MAX3(max_temp, thermalManager.degHotend(e), thermalManager.degTargetHotend(e));
-      }
       bool new_led = (max_temp > 55.0) ? true : (max_temp < 54.0) ? false : red_led;
       if (new_led != red_led) {
         red_led = new_led;
