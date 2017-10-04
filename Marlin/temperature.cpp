@@ -1559,7 +1559,7 @@ void Temperature::set_current_temp_raw() {
 
     if (endstop_change) {
       #if HAS_X_MIN
-        if (TEST(endstop_change, X_MIN)) SERIAL_PROTOCOLPAIR("X_MIN:", !!TEST(current_endstop_bits_local, X_MIN));
+        if (TEST(endstop_change, X_MIN)) SERIAL_PROTOCOLPAIR("  X_MIN:", !!TEST(current_endstop_bits_local, X_MIN));
       #endif
       #if HAS_X_MAX
         if (TEST(endstop_change, X_MAX)) SERIAL_PROTOCOLPAIR("  X_MAX:", !!TEST(current_endstop_bits_local, X_MAX));
@@ -2098,13 +2098,10 @@ void Temperature::isr() {
   #if ENABLED(BABYSTEPPING)
     LOOP_XYZ(axis) {
       const int curTodo = babystepsTodo[axis]; // get rid of volatile for performance
-      if (curTodo > 0) {
-        stepper.babystep((AxisEnum)axis, /*fwd*/true);
-        babystepsTodo[axis]--;
-      }
-      else if (curTodo < 0) {
-        stepper.babystep((AxisEnum)axis, /*fwd*/false);
-        babystepsTodo[axis]++;
+      if (curTodo) {
+        stepper.babystep((AxisEnum)axis, curTodo > 0);
+        if (curTodo > 0) babystepsTodo[axis]--;
+                    else babystepsTodo[axis]++;
       }
     }
   #endif // BABYSTEPPING
