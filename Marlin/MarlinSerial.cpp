@@ -60,12 +60,12 @@
   #endif
 
   #if ENABLED(SERIAL_XON_XOFF)
-    uint8_t xon_xoff_state = XON_XOFF_CHAR_SENT | XON_CHAR;
     constexpr uint8_t XON_XOFF_CHAR_SENT = 0x80;  // XON / XOFF Character was sent
     constexpr uint8_t XON_XOFF_CHAR_MASK = 0x1F;  // XON / XOFF character to send
     // XON / XOFF character definitions
     constexpr uint8_t XON_CHAR  = 17;
     constexpr uint8_t XOFF_CHAR = 19;
+    uint8_t xon_xoff_state = XON_XOFF_CHAR_SENT | XON_CHAR;
   #endif
 
   #if ENABLED(SERIAL_STATS_DROPPED_RX)
@@ -175,12 +175,12 @@
     // If the character is to be stored at the index just before the tail
     // (such that the head would advance to the current tail), the buffer is
     // critical, so don't write the character or advance the head.
+    const char c = M_UDRx;
     if (i != rx_buffer.tail) {
-      rx_buffer.buffer[h] = M_UDRx;
+      rx_buffer.buffer[h] = c;
       rx_buffer.head = i;
     }
     else {
-      (void)M_UDRx;
       #if ENABLED(SERIAL_STATS_DROPPED_RX)
         if (!++rx_dropped_bytes) ++rx_dropped_bytes;
       #endif
