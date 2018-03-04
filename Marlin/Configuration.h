@@ -553,14 +553,14 @@
  * Override with M92
  *                                      X, Y, Z, E0 [, E1[, E2[, E3[, E4]]]]
  */
-#define DEFAULT_AXIS_STEPS_PER_UNIT   { 80, 80, 4000, 102 }
+#define DEFAULT_AXIS_STEPS_PER_UNIT   { 80, 80, 8000, 102 }
 
 /**
  * Default Max Feed Rate (mm/s)
  * Override with M203
  *                                      X, Y, Z, E0 [, E1[, E2[, E3[, E4]]]]
  */
-#define DEFAULT_MAX_FEEDRATE          { 500, 500, 3, 25 }
+#define DEFAULT_MAX_FEEDRATE          { 500, 500, 3.5, 25 }
 
 /**
  * Default Max Acceleration (change/s) change = mm/s
@@ -568,7 +568,7 @@
  * Override with M201
  *                                      X, Y, Z, E0 [, E1[, E2[, E3[, E4]]]]
  */
-#define DEFAULT_MAX_ACCELERATION      { 1200, 1200, 100, 10000 }
+#define DEFAULT_MAX_ACCELERATION      { 1200, 1200, 50, 10000 }
 
 /**
  * Default Acceleration (change/s) change = mm/s
@@ -739,7 +739,7 @@
  * Example: `M851 Z-5` with a CLEARANCE of 4  =>  9mm from bed to nozzle.
  *     But: `M851 Z+1` with a CLEARANCE of 2  =>  2mm from bed to nozzle.
  */
-#define Z_CLEARANCE_DEPLOY_PROBE   10 // Z Clearance for Deploy/Stow
+#define Z_CLEARANCE_DEPLOY_PROBE   5 // Z Clearance for Deploy/Stow
 #define Z_CLEARANCE_BETWEEN_PROBES  5 // Z Clearance between probe points
 
 // For M851 give a range for adjusting the Z probe offset
@@ -747,7 +747,7 @@
 #define Z_PROBE_OFFSET_RANGE_MAX 2
 
 // Enable the M48 repeatability test to test probe accuracy
-#define Z_MIN_PROBE_REPEATABILITY_TEST
+//#define Z_MIN_PROBE_REPEATABILITY_TEST
 
 // For Inverting Stepper Enable Pins (Active Low) use 0, Non Inverting (Active High) use 1
 // :{ 0:'Low', 1:'High' }
@@ -774,7 +774,7 @@
 // Invert the stepper direction. Change (or reverse the motor connector) if an axis goes the wrong way.
 #define INVERT_X_DIR true
 #define INVERT_Y_DIR true
-#define INVERT_Z_DIR false
+#define INVERT_Z_DIR true
 
 // Enable this option for Toshiba stepper drivers
 //#define CONFIG_STEPPERS_TOSHIBA
@@ -945,13 +945,13 @@
   #define GRID_MAX_POINTS_Y GRID_MAX_POINTS_X
 
   // The Z probe minimum outer margin (to validate G29 parameters).
-  #define MIN_PROBE_EDGE 10
+  #define MIN_PROBE_EDGE 30
 
   // Set the boundaries for probing (where the probe can reach).
-  #define LEFT_PROBE_BED_POSITION 20
-  #define RIGHT_PROBE_BED_POSITION (X_BED_SIZE - 20)
-  #define FRONT_PROBE_BED_POSITION 20
-  #define BACK_PROBE_BED_POSITION (Y_BED_SIZE - 20)
+  #define LEFT_PROBE_BED_POSITION 30
+  #define RIGHT_PROBE_BED_POSITION (X_BED_SIZE - 30)
+  #define FRONT_PROBE_BED_POSITION 30
+  #define BACK_PROBE_BED_POSITION (Y_BED_SIZE - 30)
 
   // Probe along the Y axis, advancing X after each column
   //#define PROBE_Y_FIRST
@@ -993,7 +993,7 @@
 
   //#define MESH_EDIT_GFX_OVERLAY   // Display a graphics overlay while editing the mesh
 
-  #define MESH_INSET 20              // Mesh inset margin on print area
+  #define MESH_INSET 30              // Mesh inset margin on print area
   #define GRID_MAX_POINTS_X 4      // Don't use more than 15 points per axis, implementation limited.
   #define GRID_MAX_POINTS_Y 6
 
