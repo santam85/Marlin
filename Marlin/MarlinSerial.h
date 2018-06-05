@@ -85,7 +85,7 @@
   #define TX_BUFFER_SIZE 32
 #endif
 
-#ifndef USBCON
+#if USE_MARLINSERIAL
 
   #if RX_BUFFER_SIZE > 256
     typedef uint16_t ring_buffer_pos_t;
@@ -101,11 +101,7 @@
     extern ring_buffer_pos_t rx_max_enqueued;
   #endif
 
-  #if ENABLED(EMERGENCY_PARSER)
-    extern bool killed_by_M112;
-  #endif
-
-  class MarlinSerial { //: public Stream
+  class MarlinSerial {
 
     public:
       MarlinSerial() {};
@@ -115,13 +111,10 @@
       static int read(void);
       static void flush(void);
       static ring_buffer_pos_t available(void);
-      static void checkRx(void);
       static void write(const uint8_t c);
       #if TX_BUFFER_SIZE > 0
-        static uint8_t availableForWrite(void);
         static void flushTX(void);
       #endif
-      static void writeNoHandshake(const uint8_t c);
 
       #if ENABLED(SERIAL_STATS_DROPPED_RX)
         FORCE_INLINE static uint32_t dropped() { return rx_dropped_bytes; }
@@ -163,10 +156,10 @@
 
   extern MarlinSerial customizedSerial;
 
-#endif // !USBCON
+#endif // USE_MARLINSERIAL
 
 // Use the UART for Bluetooth in AT90USB configurations
-#if defined(USBCON) && ENABLED(BLUETOOTH)
+#if !USE_MARLINSERIAL && ENABLED(BLUETOOTH)
   extern HardwareSerial bluetoothSerial;
 #endif
 

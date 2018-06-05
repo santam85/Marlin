@@ -21,20 +21,19 @@
  */
 
 /**
- * gcode.h - Parser for a GCode line, providing a parameter interface.
- *           Codes like M149 control the way the GCode parser behaves,
- *           so settings for these codes are located in this class.
+ * parser.h - Parser for a GCode line, providing a parameter interface.
+ *            Codes like M149 control the way the GCode parser behaves,
+ *            so settings for these codes are located in this class.
  */
 
-#ifndef GCODE_H
-#define GCODE_H
+#ifndef _PARSER_H_
+#define _PARSER_H_
 
 #include "enum.h"
 #include "types.h"
 #include "MarlinConfig.h"
 
 //#define DEBUG_GCODE_PARSER
-
 #if ENABLED(DEBUG_GCODE_PARSER)
   #include "hex_print_routines.h"
   #include "serial.h"
@@ -154,7 +153,7 @@ public:
     // Code is found in the string. If not found, value_ptr is unchanged.
     // This allows "if (seen('A')||seen('B'))" to use the last-found value.
     static bool seen(const char c) {
-      const char *p = strchr(command_args, c);
+      char *p = strchr(command_args, c);
       const bool b = !!p;
       if (b) value_ptr = valid_float(&p[1]) ? &p[1] : (char*)NULL;
       return b;
@@ -318,7 +317,7 @@ public:
 
   // Provide simple value accessors with default option
   FORCE_INLINE static float    floatval(const char c, const float dval=0.0)   { return seenval(c) ? value_float()        : dval; }
-  FORCE_INLINE static bool     boolval(const char c)                          { return seenval(c) ? value_bool()         : seen(c); }
+  FORCE_INLINE static bool     boolval(const char c, const bool dval=false)   { return seenval(c) ? value_bool()         : (seen(c) ? true : dval); }
   FORCE_INLINE static uint8_t  byteval(const char c, const uint8_t dval=0)    { return seenval(c) ? value_byte()         : dval; }
   FORCE_INLINE static int16_t  intval(const char c, const int16_t dval=0)     { return seenval(c) ? value_int()          : dval; }
   FORCE_INLINE static uint16_t ushortval(const char c, const uint16_t dval=0) { return seenval(c) ? value_ushort()       : dval; }
@@ -331,4 +330,4 @@ public:
 
 extern GCodeParser parser;
 
-#endif // GCODE_H
+#endif // _PARSER_H_
