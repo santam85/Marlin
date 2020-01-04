@@ -9,7 +9,7 @@
 # any permanent changes to 'master'.
 #
 
-[[ $# < 2 && $1 != "-h" && $1 != "--help" ]] || { echo "Usage: `basename $0` [branch]" 1>&2 ; exit 1; }
+[[ $# < 2 && $1 != "-h" && $1 != "--help" ]] || { echo "usage: `basename $0` [branch]" 1>&2 ; exit 1; }
 
 MFINFO=$(mfinfo "$@") || exit 1
 IFS=' ' read -a INFO <<< "$MFINFO"
@@ -24,13 +24,13 @@ if [[ $ORG != "MarlinFirmware" || $REPO != "MarlinDocumentation" ]]; then
   exit
 fi
 
-# Check out the named branch (or stay in current)
-git checkout $BRANCH
-
 if [[ $BRANCH == "gh-pages" ]]; then
   echo "Can't build from 'gh-pages.' Only the Jekyll branches (based on 'master')."
   exit
 fi
+
+# Check out the named branch (or stay in current)
+git checkout $BRANCH
 
 echo "Stashing any changes to files..."
 echo "Don't forget to update and push 'master'!"
@@ -69,7 +69,7 @@ if [[ $BRANCH == "master" ]]; then
 
 else
 
-  if [ -z "$(git branch -vv | grep ^\* | grep \\[origin)" ]; then
+  if [ -z "$(git branch -vv | grep ^\* | grep \\\[origin)" ]; then
     firstpush
   else
     echo
@@ -77,15 +77,17 @@ else
     git push -f origin
   fi
 
-  TOOL=$(which gnome-open xdg-open open | awk '{ print $1 }')
+  which xdg-open >/dev/null && TOOL=xdg-open
+  which gnome-open >/dev/null && TOOL=gnome-open
+  which open >/dev/null && TOOL=open
   URL="https://github.com/$ORG/$REPO/compare/$TARG...$FORK:$BRANCH?expand=1"
 
-  if [ -z "$TOOL" ]; then
+  if [ -z "$OPEN" ]; then
     echo "Can't find a tool to open the URL:"
     echo $URL
   else
     echo "Opening a New PR Form..."
-    "$TOOL" "$URL"
+    "$OPEN" "$URL"
   fi
 
 fi
@@ -96,6 +98,8 @@ fi
 
 echo
 echo "Generating MarlinDocumentation..."
+
+rm -rf _site
 
 # build the site statically and proof it
 bundle exec jekyll build --profile --trace --no-watch
@@ -110,13 +114,33 @@ git reset --hard
 git clean -d -f
 
 # Copy built-site into the gh-pages branch
-git checkout gh-pages
+git checkout gh-pages || { echo "Something went wrong!"; exit 1; }
 rsync -av ${TMPFOLDER}/ ./
+
+opensite() {
+  which xdg-open >/dev/null && TOOL=xdg-open
+  which gnome-open >/dev/null && TOOL=gnome-open
+  which open >/dev/null && TOOL=open
+  URL="http://marlinfw.org/"
+  if [ -z "$OPEN" ]; then
+    echo "Can't find a tool to open the URL:"
+    echo $URL
+  else
+    echo "Opening the site in the browser..."
+    "$OPEN" "$URL"
+  fi
+}
 
 # Commit and push the new live site directly
 git add --all
 git commit --message "Built from ${COMMIT}"
-git push upstream
+git push upstream | {
+  while IFS= read -r line
+  do
+    [[ $line =~ "gh-pages -> gh-pages" ]] && opensite
+    echo "$line"
+  done
+}
 
 # remove the temporary folder
 rm -rf ${TMPFOLDER}
