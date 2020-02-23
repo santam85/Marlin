@@ -584,7 +584,7 @@ void _tmc_say_sgt(const TMC_AxisEnum axis, const int8_t sgt) {
     #if ENABLED(STEALTHCHOP)
       st.stealthChop(!enable);
     #endif
-    st.diag1_stall(enable ? 1 : 0);
+    st.diag0_stall(enable ? 1 : 0);
   }
 
 #endif // SENSORLESS_HOMING
