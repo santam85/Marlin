@@ -711,7 +711,7 @@
  * Override with M92
  *                                      X, Y, Z, E0 [, E1[, E2...]]
  */
-#define DEFAULT_AXIS_STEPS_PER_UNIT   { 3200, 3200, 3200, 13396 }
+#define DEFAULT_AXIS_STEPS_PER_UNIT   { 200, 200, 3200, 1674 }
 
 /**
  * Default Max Feed Rate (mm/s)
@@ -731,11 +731,11 @@
  * Override with M201
  *                                      X, Y, Z, E0 [, E1[, E2...]]
  */
-#define DEFAULT_MAX_ACCELERATION      { 2000, 2000, 50, 4000 }
+#define DEFAULT_MAX_ACCELERATION      { 2000, 2000, 20, 4000 }
 
 //#define LIMITED_MAX_ACCEL_EDITING     // Limit edit via M201 or LCD to DEFAULT_MAX_ACCELERATION * 2
 #if ENABLED(LIMITED_MAX_ACCEL_EDITING)
-  #define MAX_ACCEL_EDIT_VALUES       { 4000, 4000, 100, 8000 } // ...or, set your own edit limits
+  #define MAX_ACCEL_EDIT_VALUES       { 4000, 4000, 40, 8000 } // ...or, set your own edit limits
 #endif
 
 /**
@@ -760,15 +760,15 @@
  */
 //#define CLASSIC_JERK
 #if ENABLED(CLASSIC_JERK)
-  #define DEFAULT_XJERK 1.0
-  #define DEFAULT_YJERK 1.0
-  #define DEFAULT_ZJERK  0.2
+  #define DEFAULT_XJERK 0.5
+  #define DEFAULT_YJERK 0.5
+  #define DEFAULT_ZJERK  0.1
 
   //#define TRAVEL_EXTRA_XYJERK 0.0     // Additional jerk allowance for all travel moves
 
   //#define LIMITED_JERK_EDITING        // Limit edit via M205 or LCD to DEFAULT_aJERK * 2
   #if ENABLED(LIMITED_JERK_EDITING)
-    #define MAX_JERK_EDIT_VALUES { 2, 2, 0.2, 1 } // ...or, set your own edit limits
+    #define MAX_JERK_EDIT_VALUES { 1, 1, 0.2, 1 } // ...or, set your own edit limits
   #endif
 #endif
 
@@ -1348,7 +1348,7 @@
 
 // Homing speeds (mm/m)
 #define HOMING_FEEDRATE_XY (50*60)
-#define HOMING_FEEDRATE_Z  (4*60)
+#define HOMING_FEEDRATE_Z  (3*60)
 
 // Validate that endstops are triggered on homing moves
 #define VALIDATE_HOMING_ENDSTOPS
