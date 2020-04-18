@@ -528,7 +528,7 @@
 //
 // For Z set the number of stepper drivers
 //
-#define NUM_Z_STEPPER_DRIVERS 1   // (1-4) Z options change based on how many
+#define NUM_Z_STEPPER_DRIVERS 2   // (1-4) Z options change based on how many
 
 #if NUM_Z_STEPPER_DRIVERS > 1
   //#define Z_MULTI_ENDSTOPS
@@ -692,7 +692,7 @@
  * Z Steppers Auto-Alignment
  * Add the G34 command to align multiple Z steppers using a bed probe.
  */
-//#define Z_STEPPER_AUTO_ALIGN
+#define Z_STEPPER_AUTO_ALIGN
 #if ENABLED(Z_STEPPER_AUTO_ALIGN)
   // Define probe X and Y positions for Z1, Z2 [, Z3 [, Z4]]
   // If not defined, probe limits will be used.
@@ -720,7 +720,7 @@
    *
    */
   #ifndef Z_STEPPER_ALIGN_XY
-    //#define Z_STEPPERS_ORIENTATION 0
+    #define Z_STEPPERS_ORIENTATION 0
   #endif
 
   // Provide Z stepper positions for more rapid convergence in bed alignment.
@@ -2087,7 +2087,7 @@
   #endif
 
   #if AXIS_IS_TMC(Z)
-    #define Z_CURRENT       500
+    #define Z_CURRENT       800
     #define Z_CURRENT_HOME  Z_CURRENT
     #define Z_MICROSTEPS     8
     #define Z_RSENSE          0.06
@@ -2097,7 +2097,7 @@
   #if AXIS_IS_TMC(Z2)
     #define Z2_CURRENT      800
     #define Z2_CURRENT_HOME Z2_CURRENT
-    #define Z2_MICROSTEPS    256
+    #define Z2_MICROSTEPS    8
     #define Z2_RSENSE         0.06
     #define Z2_CHAIN_POS     -1
   #endif
@@ -2298,10 +2298,10 @@
   #define X2_HYBRID_THRESHOLD    80
   #define Y_HYBRID_THRESHOLD     80
   #define Y2_HYBRID_THRESHOLD    80
-  #define Z_HYBRID_THRESHOLD       1
-  #define Z2_HYBRID_THRESHOLD      1
-  #define Z3_HYBRID_THRESHOLD      1
-  #define Z4_HYBRID_THRESHOLD      1
+  #define Z_HYBRID_THRESHOLD       3
+  #define Z2_HYBRID_THRESHOLD      3
+  #define Z3_HYBRID_THRESHOLD      3
+  #define Z4_HYBRID_THRESHOLD      3
   #define E0_HYBRID_THRESHOLD     30
   #define E1_HYBRID_THRESHOLD     30
   #define E2_HYBRID_THRESHOLD     30
