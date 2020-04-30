@@ -19,7 +19,7 @@ jobs:
     - name: Check out bugfix-2.0.x
       uses: actions/checkout@v2
       with:
-        ref: bugfix-2.0.x
+        ref: s6
 
     - name: Bump Distribution Date
       run: |
