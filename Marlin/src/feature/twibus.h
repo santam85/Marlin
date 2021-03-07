@@ -31,11 +31,15 @@
 typedef void (*twiReceiveFunc_t)(int bytes);
 typedef void (*twiRequestFunc_t)();
 
-#if ENABLED(MECHADUINO_I2C_COMMANDS)
-  typedef union {
-    float fval;
-    byte bval[sizeof(float)];
-  } i2cFloat;
+/**
+ * For a light i2c protocol that runs on two boards running Marlin see:
+ * See https://github.com/MarlinFirmware/Marlin/issues/4776#issuecomment-246262879
+ */
+#if I2C_SLAVE_ADDRESS > 0
+
+  void i2c_on_receive(int bytes); // Demo i2c onReceive handler
+  void i2c_on_request();          // Demo i2c onRequest handler
+
 #endif
 
 #define TWIBUS_BUFFER_SIZE 32
@@ -103,7 +107,7 @@ class TWIBus {
      *
      * @param c a data byte
      */
-    void addbyte(const byte c);
+    void addbyte(const char c);
 
     /**
      * @brief Add some bytes to the buffer
@@ -113,7 +117,7 @@ class TWIBus {
      * @param src source data address
      * @param bytes the number of bytes to add
      */
-    void addbytes(byte src[], uint8_t bytes);
+    void addbytes(char src[], uint8_t bytes);
 
     /**
      * @brief Add a null-terminated string to the buffer
@@ -176,7 +180,7 @@ class TWIBus {
      * @param bytes the number of bytes to request
      * @return the number of bytes captured to the buffer
      */
-    uint8_t capture(byte *dst, const uint8_t bytes);
+    uint8_t capture(char *dst, const uint8_t bytes);
 
     /**
      * @brief Flush the i2c bus.
@@ -245,3 +249,5 @@ class TWIBus {
       static inline void debug(const char[], uint8_t) {}
     #endif
 };
+
+extern TWIBus i2c;
